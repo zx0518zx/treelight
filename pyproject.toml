@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "treelight"
+version = "4.0.0"
+description = "Tree Lighting Analysis Library"
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib"
+]
