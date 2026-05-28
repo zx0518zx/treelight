@@ -156,6 +156,7 @@ Purpose-Driven Abstraction: This lightweight abstraction is intentionally engine
 聚焦树冠外部包络面： 计算引擎重点解析投射并入射于树冠外边界上的直射辐射场。它不包含树冠内部微气候的光衰减过程、叶片间的微观多次散射以及枝条叶片级别的内部自遮挡（Self-shading）效应。
 
 科学目标导向的抽象： 这种轻量级几何原始体抽象经过了有意设计，旨在结构代表性与计算效率之间取得最佳平衡，从而确保软件能以极高的吞吐量完成城市路网级别的跨尺度 scale-up 批量扩展计算。
+
 ---
 📄 License (开源协议)
 ---
