@@ -5,20 +5,26 @@ def generate_fibonacci_mesh(canopy_type, bh, ch, cw, target_area=0.01):
     生成均匀的斐波那契点云及其法向量
     """
     radius = cw / 2.0
+    
+    # 【新增修正：异常拦截】防止因参数为0或不合理导致除零错误或无意义计算
+    if radius <= 0.01 or (ch <= 0.01 and "圆柱" not in str(canopy_type) and "Cylinder" not in str(canopy_type)):
+        return np.array([]), np.array([]), np.array([])
+        
     centers = []
     normals = []
     areas = []
     
-    # 辅助函数
+    # --- 辅助函数 ---
     def fib_sphere(n, r_scale, z_scale, z_offset, cap_mode=False):
+        if n <= 0: return [], []
         pts = []
         nms = []
         phi = (np.sqrt(5) - 1) / 2
         for i in range(n):
-            y_s = 1 - (i / float(n - 1)) * 2
-            if cap_mode: y_s = 1 - (i / float(n - 1))
+            y_s = 1 - (i / float(n - 1)) * 2 if n > 1 else 0
+            if cap_mode: y_s = 1 - (i / float(n - 1)) if n > 1 else 1
             
-            radius_at_y = np.sqrt(1 - y_s * y_s)
+            radius_at_y = np.sqrt(max(0, 1 - y_s * y_s))
             theta = 2 * np.pi * i * phi
             
             x = r_scale * radius_at_y * np.cos(theta)
@@ -27,19 +33,21 @@ def generate_fibonacci_mesh(canopy_type, bh, ch, cw, target_area=0.01):
             pts.append([x, y, z])
             
             if cap_mode:
-                nx, ny, nz = x/(r_scale**2), y/(r_scale**2), (z-z_offset)/(z_scale**2)
+                sr, sz = max(1e-6, r_scale), max(1e-6, z_scale)
+                nx, ny, nz = x/(sr**2), y/(sr**2), (z-z_offset)/(sz**2)
                 l = np.sqrt(nx*nx + ny*ny + nz*nz)
-                nms.append([nx/l, ny/l, nz/l])
+                nms.append([nx/l, ny/l, nz/l] if l>0 else [0,0,1])
             else:
                 nms.append([0,0,1])
         return pts, nms
 
     def fib_disk(n, z_pos, normal_dir):
+        if n <= 0: return [], []
         pts = []
         nms = []
         phi = (np.sqrt(5) - 1) / 2
         for i in range(n):
-            r = radius * np.sqrt(i / (n - 0.5))
+            r = radius * np.sqrt(i / (n - 0.5) if n > 0 else 0)
             theta = 2 * np.pi * i * phi
             x = r * np.cos(theta)
             y = r * np.sin(theta)
@@ -47,14 +55,15 @@ def generate_fibonacci_mesh(canopy_type, bh, ch, cw, target_area=0.01):
             nms.append(normal_dir)
         return pts, nms
 
-    # 几何生成逻辑
-    if canopy_type == "半椭球体":
+    # --- 几何生成逻辑 ---
+    if "半椭球" in str(canopy_type) or "Half Ellipsoid" in str(canopy_type) or canopy_type == "半椭球体":
         p = 1.6075
         area_ellip = 2 * np.pi * ((radius**p * radius**p + 2 * radius**p * ch**p) / 3)**(1/p)
         area_bottom = np.pi * radius**2
         
-        n_side = int(area_ellip / target_area)
-        n_bottom = int(area_bottom / target_area)
+        # 【新增修正：max(1, ...) 保护，防止网格数为0】
+        n_side = max(1, int(area_ellip / target_area))
+        n_bottom = max(1, int(area_bottom / target_area))
         
         s_pts, s_nms = fib_sphere(n_side, radius, ch, bh, cap_mode=True)
         b_pts, b_nms = fib_disk(n_bottom, bh, [0, 0, -1])
@@ -63,22 +72,23 @@ def generate_fibonacci_mesh(canopy_type, bh, ch, cw, target_area=0.01):
         normals = s_nms + b_nms
         areas = [area_ellip/n_side]*len(s_pts) + [area_bottom/n_bottom]*len(b_pts)
 
-    elif canopy_type == "圆锥体":
+    elif "圆锥" in str(canopy_type) or "Cone" in str(canopy_type) or canopy_type == "圆锥体":
         slant = np.sqrt(radius**2 + ch**2)
         area_side = np.pi * radius * slant
         area_bottom = np.pi * radius**2
         
-        n_side = int(area_side / target_area)
-        n_bottom = int(area_bottom / target_area)
+        # 【新增修正：max(1, ...) 保护】
+        n_side = max(1, int(area_side / target_area))
+        n_bottom = max(1, int(area_bottom / target_area))
         
         s_pts = []
         s_nms = []
         phi = (np.sqrt(5) - 1) / 2
-        sin_alpha = radius / slant
-        cos_alpha = ch / slant
+        sin_alpha = radius / (slant + 1e-9)
+        cos_alpha = ch / (slant + 1e-9)
         
         for i in range(n_side):
-            ratio = np.sqrt(i / (n_side - 0.5))
+            ratio = np.sqrt(i / (n_side - 0.5)) if n_side > 1 else 0.5
             cur_r = radius * (1 - ratio)
             cur_z = bh + ch * ratio
             theta = 2 * np.pi * i * phi
@@ -96,18 +106,19 @@ def generate_fibonacci_mesh(canopy_type, bh, ch, cw, target_area=0.01):
         normals = s_nms + b_nms
         areas = [area_side/n_side]*len(s_pts) + [area_bottom/n_bottom]*len(b_pts)
 
-    elif canopy_type == "圆柱体":
+    else: # 默认为圆柱体
         area_side = 2 * np.pi * radius * ch
         area_cap = np.pi * radius**2
         
-        n_side = int(area_side / target_area)
-        n_cap = int(area_cap / target_area)
+        # 【新增修正：max(1, ...) 保护】
+        n_side = max(1, int(area_side / target_area))
+        n_cap = max(1, int(area_cap / target_area))
         
         s_pts = []
         s_nms = []
         phi = (np.sqrt(5) - 1) / 2
         for i in range(n_side):
-            z = bh + ch * (i / (n_side - 1))
+            z = bh + ch * (i / (n_side - 1)) if n_side > 1 else bh + ch/2
             theta = 2 * np.pi * i * phi
             x = radius * np.cos(theta)
             y = radius * np.sin(theta)
