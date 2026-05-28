@@ -66,7 +66,7 @@ def get_interpolated_intensity(ies_data, theta, phi):
     
     # 1. 角度归一化与映射
     theta = np.clip(theta, v_angs.min(), v_angs.max())
-    phi = phi % 360.0
+    phi = (phi + 90.0) % 360.0
     max_h = h_angs.max()
     
     target_phi = phi
