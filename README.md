@@ -1,6 +1,8 @@
 Installation (安装指南)
 treelight leverages a modern pyproject.toml configuration. To install and use the core development package from source, clone this repository and install it directly via pip:
 treelight 采用现代化的 pyproject.toml 进行构建与打包管理。若需要从源码配置核心科学计算库，请克隆本仓库并通过 pip 直接进行本地安装：
+
+
 # Clone the repository
 git clone [https://github.com/zx0518zx/treelight.git](https://github.com/zx0518zx/treelight.git)
 cd treelight
@@ -11,6 +13,8 @@ pip install .
 
 Quick Start (快速入门 - Python API)
 Here is a quick example of how to programmatically execute a single-tree 3D radiative simulation and evaluate its implicit carbon sink:
+
+
 import numpy as np
 import treelight as tl
 
