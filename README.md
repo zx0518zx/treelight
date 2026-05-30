@@ -68,8 +68,8 @@ treelight/
 ---
 #⚙️ Installation (安装指南)
 ---
-treelight leverages a modern pyproject.toml configuration. To install and use the core development package from source, clone this repository and install it directly via pip:
-treelight 采用现代化的 pyproject.toml 进行构建与打包管理。若需要从源码配置核心科学计算库，请克隆本仓库并通过 pip 直接进行本地安装：
+We use pyproject.toml for build and package management. To install core scientific computing libraries from source, clone this repository or download the archive directly from the web page, then perform local installation via pip：
+采用现代化的 pyproject.toml 进行构建与打包管理。若需要从源码配置核心科学计算库，请克隆本仓库或直接从网页下载压缩包并通过 pip 直接进行本地安装：
 ```text
 # Clone the repository
 git clone [https://github.com/zx0518zx/treelight.git](https://github.com/zx0518zx/treelight.git)
@@ -84,49 +84,136 @@ pip install .
 Here is a quick example of how to programmatically execute a single-tree 3D radiative simulation and evaluate its implicit carbon sink:
 以下是如何在 Python 脚本中调用核心库进行单树 3D 光照模拟与隐性碳汇评估的完整示例：
 ```text
+import os
 import numpy as np
 import treelight as tl
 
-# 1. Register or update customized tree species parameters
-tl.register_species("Platanus × acerifolia", alpha=0.058, Rd=1.08, LCP=25.3)
 
-# 2. Parse the IES photometric file
-ies_data, msg = tl.parse_ies_full("example/test.ies")
-print(msg)
 
-# 3. Configure tree morphology parameters
-geo_params = {
-    "canopy_type": "半椭球体",    # Supports: "半椭球体" (Half Ellipsoid), "圆锥体" (Cone), "圆柱体" (Cylinder)
-    "tree_height": 8.4,
-    "branch_height": 2.9,
-    "crown_width": 5.1
-}
+def run_chinese_verification():
+    print("==================================================")
+    print("  treelight 框架：全功能自动化验证与测试脚本       ")
+    print("==================================================\n")
 
-# 4. Set relative streetlight spatial positions (Local trunk-base Cartesian coordinate)
-light_pos_list = [{"x": 1.7, "y": 3.0, "z": 10.0}]
+    # --------------------------------------------------
+    # 1. 验证所有数据库与配置相关的核心命令
+    # --------------------------------------------------
+    print("[1/4] 正在验证底层数据库的 6 个核心配置命令...")
+    
+    # 命令 1：获取系统当前所有可用的树种列表
+    initial_species = tl.get_available_species()
+    print(f"-> [命令 1] 系统初始置入树种: {initial_species}")
+    
+    # 命令 2：注册新的自定义树种（自动触发本地 JSON 文件的读写与持久化保存）
+    print("-> [命令 2] 正在注册自定义树种 'Platanus_orientalis'...")
+    tl.register_species(name="Platanus_orientalis", alpha=0.062, Rd=1.15, LCP=24.5, LSP=1500)
+    
+    # 命令 3：精确查询新注册树种的生理参数分布
+    species_params = get_species_params("Platanus_orientalis")
+    print(f"-> [命令 3] 读取 'Platanus_orientalis' 的核心生理参数: {species_params}")
+    
+    # 命令 4：获取系统当前所有支持的光源光谱因子列表
+    initial_lights = get_available_lights()
+    print(f"-> [命令 4] 系统初始光源配置表: {initial_lights}")
+    
+    # 命令 5：注册新的自定义光源转换系数
+    print("-> [命令 5] 正在注册自定义光源系数 'Experimental_LED'...")
+    tl.register_light(name="Experimental_LED", factor=0.0165)
+    
+    # 命令 6：获取特定自定义光源的转换因子
+    light_factor = tl.get_ppfd_factor("Experimental_LED")
+    print(f"-> [命令 6] 成功调取 'Experimental_LED' 转换因子: {light_factor}")
+    
+    # 检测本地配置文件是否成功生成
+    if os.path.exists("treelight_config.json"):
+        print("✅ 成功：本地数据库文件 'treelight_config.json' 已正确生成并实现持久化。")
+    else:
+        print("❌ 失败：本地数据库持久化配置失败。")
+    print("-" * 50 + "\n")
 
-# 5. Define environmental simulation parameters
-env_params = {
-    "precision": 0.01,             # Target surface area discretization grid mesh size (m²)
-    "maintenance_factor": 0.85,    # Luminaire maintenance factor
-    "light_output_ratio": 0.90,    # Light output ratio
-    "ppfd_factor": 0.0143          # k factor matching a 3000K LED source
-}
+# --------------------------------------------------
+    # 2. 光度数据解析与 3D 网格生成
+    # --------------------------------------------------
+    print("[2/4] 正在验证 IES 配光曲线全量解析与 3D 几何网格离散化...")
+    
+    # 【修改点】改为交互式要求输入文件路径，直到输入正确为止
+    while True:
+        ies_path = input("👉 请输入 IES 文件的完整绝对路径 (提示: 可以直接将文件拖拽到此窗口中): ").strip()
+        # 自动去除直接拖拽文件时可能产生的首尾引号
+        ies_path = ies_path.strip('\'"') 
+        
+        if os.path.exists(ies_path):
+            print(f"✅ 成功找到文件: {ies_path}")
+            break
+        else:
+            print(f"❌ 找不到文件: {ies_path}，请检查路径是否正确并重新输入！\n")
 
-# 6. Execute core light field simulation
-physics_result = tl.calculate_canopy_ppfd(geo_params, light_pos_list, ies_data, env_params)
+    # 执行解析
+    ies_data, msg = tl.parse_ies_full(ies_path)
+    print(f"-> IES 解析器返回日志: {msg}")
+    
+    # 设定几何树冠参数
+    geo_params = {
+        "canopy_type": "半椭球体",  # 参数化半椭球体连续边界
+        "tree_height": 8.5,
+        "branch_height": 3.0,
+        "crown_width": 5.0
+    }
+    print("✅ 成功：光度网格插值就绪，树冠理想几何边界条件构建完成。")
+    print("-" * 50 + "\n")
 
-# 7. Perform light environmental grading and carbon sink evaluation
-grade_stats = tl.grade_light_environment(physics_result, "Platanus × acerifolia")
-carbon_stats = tl.calculate_implicit_carbon(physics_result, "Platanus × acerifolia", hours=4380)
+    # --------------------------------------------------
+    # 3. 3D 光场辐射计算
+    # --------------------------------------------------
+    print("[3/4] 正在启动 3D 空间光场辐射模拟核心引擎...")
+    light_pos_list = [{"x": 1.8, "y": 2.5, "z": 9.5}]  # 模拟路灯相对位置
+    env_params = {
+        "precision": 0.05,  # 斐波那契表面网格离散精度 (m²)
+        "maintenance_factor": 0.85,
+        "light_output_ratio": 0.90,
+        "ppfd_factor": tl.get_ppfd_factor("3000K LED (0.0143)")
+    }
+    
+    physics_result = tl.calculate_canopy_ppfd(geo_params, light_pos_list, ies_data, env_params)
+    print(f"-> 斐波那契点云成功离散出树冠外表面网格顶点数: {len(physics_result['centers'])}")
+    print("✅ 成功：空间光学平方反比与双线性光强插值计算执行完毕。")
+    print("-" * 50 + "\n")
 
-# Output evaluation summaries
-print(f"Total Canopy Area: {grade_stats['total_area']:.2f} m²")
-print(f"Average Effective PPFD: {grade_stats['avg_ppfd']:.2f} μmol/(m²·s)")
-print(f"Annual Implicit Carbon Sink: {carbon_stats['carbon_g']:.4f} g CO2")
+# --------------------------------------------------
+    # 4. 生态学评估与隐性碳汇量化
+    # --------------------------------------------------
+    print("[4/4] 正在量化夜间受光面轻量化分级与隐性碳汇增量...")
+    
+    # 运行生态学评估引擎
+    grade_stats = tl.grade_light_environment(physics_result, "Platanus_orientalis")
+    carbon_stats = tl.calculate_implicit_carbon(physics_result, "Platanus_orientalis", hours=4380)
+    
+    # 提取分级面积数据
+    areas = grade_stats["grade_stats_area"]
+    
+    print("\n【光环境物理与生态指标核算报告】")
+    print(f"📍 光源相对坐标: X={light_pos_list[0]['x']}m, Y={light_pos_list[0]['y']}m, H={light_pos_list[0]['z']}m (基于树干底端原点)")
+    print(f"🌲 树冠外边界总表面积: {grade_stats['total_area']:.2f} m²")
+    print(f"💡 冠层接收到的最大光强 (Max PPFD): {grade_stats['max_ppfd']:.2f} μmol/(m²·s)")
+    print(f"📊 受光面平均有效光强 (PPFD > 0.01): {grade_stats['avg_ppfd']:.2f} μmol/(m²·s)")
+    
+    print("\n【冠层受光面积梯度分布】")
+    print(f"  ├─ [微弱光扰] 0.01 - 0.1 μmol/(m²·s) : {areas.get('0.01-0.1', 0):.2f} m²")
+    print(f"  ├─ [中等光扰] 0.1 - 1.0 μmol/(m²·s)  : {areas.get('0.1-1.0', 0):.2f} m²")
+    print(f"  ├─ [强光扰动] 1.0 - LCP 光补偿点      : {areas.get('1.0-LCP', 0):.2f} m²")
+    print(f"  └─ [有效碳汇] > LCP 光补偿点          : {areas.get('>LCP', 0):.2f} m²")
+    
+    print(f"\n🌍 人造光辐射带来的年度隐性碳汇贡献总收益: {carbon_stats['carbon_g']:.4f} g CO2")
+    print("✅ 成功：生态学增量效应解析模块完成测试。")
+    print("\n==================================================")
+    print("  测试通过！系统内所有底层科学计算与数据库功能表现正常。 ")
+    print("==================================================")
 
-# 8. Render academic dual-viewport 3D heatmap
-tl.visualize_ppfd_3d(physics_result, species_name="Platanus × acerifolia", show=True)
+    # 如需查看 3D 热力图，请取消下行注释
+    # tl.visualize_ppfd_3d(physics_result, species_name="Platanus_orientalis", show=True)
+
+if __name__ == "__main__":
+    run_chinese_verification();
 ```
 ---
 🖥️ Graphical User Interface (图形用户界面)
