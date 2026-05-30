@@ -9,6 +9,6 @@ description = "Tree Lighting Analysis Library"
 dependencies = [
     "numpy",
     "pandas",
-    "matplotlib"，
+    "matplotlib",
     "openpyxl"
 ]
