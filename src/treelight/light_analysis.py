@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Physical Light Analysis and Visualization Module
-物理光照计算与可视化分析模块
+物理光照计算与可视化分析模块 / Physical Light Analysis and Visualization Module
 """
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,15 +15,16 @@ from .ies_parser import get_interpolated_intensity
 from .config import get_species_params
 
 # =========================================================================
-# Module 1: Physical Simulation / 模块一：物理计算
+# 模块一：物理光场辐射计算 / Module 1: Physical Radiation Simulation
 # =========================================================================
 def calculate_canopy_ppfd(geo_params: Dict[str, Any], light_pos_list: List[Dict[str, float]], ies_data: Dict[str, Any], env_params: Dict[str, Any]) -> Dict[str, Any]:
     """
+    计算树冠表面的 PPFD 原始物理分布。
     Calculate the raw PPFD distribution on the canopy surface.
-    计算树冠表面的 PPFD 原始分布。
     """
     prec = env_params.get("precision", 0.05)
-    # Generate canopy mesh / 生成树冠网格
+    
+    # 1. 生成树冠网格 / Generate canopy mesh
     centers, normals, areas = generate_fibonacci_mesh(
         geo_params["canopy_type"], 
         geo_params["branch_height"], 
@@ -33,34 +34,34 @@ def calculate_canopy_ppfd(geo_params: Dict[str, Any], light_pos_list: List[Dict[
     )
     
     total_ppfd = np.zeros(len(centers))
-    mf = env_params["maintenance_factor"] # Maintenance factor / 路灯维护系数
-    lor = env_params["light_output_ratio"] # Light output ratio / 灯具效率
-    conv = env_params["ppfd_factor"] # PPFD conversion factor / 光量子转换因子
+    mf = env_params["maintenance_factor"]       # 路灯维护系数 / Maintenance factor
+    lor = env_params["light_output_ratio"]      # 灯具效率 / Light output ratio
+    conv = env_params["ppfd_factor"]            # PPFD 转换因子 / PPFD conversion factor
     
-    # Iterate through all light sources / 遍历所有光源位置
+    # 2. 遍历所有光源并积分 / Iterate and integrate over all light sources
     for lp in light_pos_list:
         l_pos = np.array([lp["x"], lp["y"], lp["z"]])
         vec = centers - l_pos 
-        dists_sq = np.sum(vec**2, axis=1) # Squared distance / 距离平方
+        dists_sq = np.sum(vec**2, axis=1)       # 距离平方 / Squared distance
         
-        # Calculate light direction and incidence angle / 计算光照方向向量和入射角
+        # 计算光照方向与入射余弦角 / Calculate light direction and incidence angle
         l_dir = vec / (np.sqrt(dists_sq)[:, np.newaxis] + 1e-9)
         cos_alpha = np.sum(normals * (-l_dir), axis=1)
-        lit_mask = cos_alpha > 0 # Mask for surfaces facing the light / 面向光源的表面掩码
+        lit_mask = cos_alpha > 0                # 面向光源的表面掩码 / Mask for surfaces facing the light
         
         if not np.any(lit_mask): continue
         
-        # Calculate spherical coordinates for IES mapping / 计算用于 IES 映射的球面坐标 (theta, phi)
+        # 计算用于 IES 插值的球面坐标 / Calculate spherical coordinates for IES mapping
         valid_l_dir = l_dir[lit_mask]
         theta = np.degrees(np.arccos(np.clip(-valid_l_dir[:, 2], -1, 1)))
         phi = np.degrees(np.arctan2(valid_l_dir[:, 1], valid_l_dir[:, 0]))
         phi[phi < 0] += 360
         
-        # Interpolate intensity / 获取插值光强
+        # 获取插值光强 / Get interpolated intensities from IES data
         intensities = np.array([get_interpolated_intensity(ies_data, t, p) 
                                 for t, p in zip(theta, phi)])
         
-        # Inverse-square law and Lambert's cosine law / 逆平方定律与朗伯余弦定律
+        # 逆平方定律与朗伯余弦定律 / Inverse-square law & Lambert's cosine law
         E = (intensities / dists_sq[lit_mask]) * cos_alpha[lit_mask] * mf * lor
         total_ppfd[lit_mask] += E * conv
 
@@ -74,70 +75,78 @@ def calculate_canopy_ppfd(geo_params: Dict[str, Any], light_pos_list: List[Dict[
     }
 
 # =========================================================================
-# Module 2: Light Environment Grading / 模块二：光环境分级
+# 模块二：光环境生态分级 / Module 2: Light Environment Ecological Grading
 # =========================================================================
 def grade_light_environment(physics_result: Dict[str, Any], species_name: str) -> Dict[str, Any]:
     """
-    Grade and statistically analyze the light environment distribution.
     对光环境进行分级统计与面积占比分析。
+    Grade and statistically analyze the light environment distribution.
     """
     ppfd = physics_result["ppfd_raw"]
     areas = physics_result["areas"]
     
     params = get_species_params(species_name)
-    LCP = params["LCP"] # Light Compensation Point / 光补偿点
+    LCP = params["LCP"] # 树种的光补偿点 / Light Compensation Point
     
-    # 1. Dynamically define intervals / 动态定义数据统计区间 (与 v4.5 一致)
+    # 动态定义数据统计区间 / Dynamically define intervals
     bins = [0.01, 0.1, 1.0, LCP, 99999.0]
     labels = ["0.01-0.1", "0.1-1.0", "1.0-LCP", ">LCP"]
     
     stats_area = {}
     
-    # 2. Calculate area for each interval / 统计各区间内的表面积
+    # 统计各区间内的受光表面积 / Calculate illuminated area for each interval
     for i in range(len(bins)-1):
         mask = (ppfd >= bins[i]) & (ppfd < bins[i+1])
         stats_area[labels[i]] = np.sum(areas[mask])
 
-    # 3. Calculate Average PPFD (only for valid lit areas > 0.01) 
-    # 计算平均 PPFD (修正逻辑：仅计算受光面 > 0.01，避免背光面的 0 值拉低平均数)
+    # 计算有效平均 PPFD (剔除完全背光的暗区) / Calculate effective Average PPFD (exclude pure dark zones)
     mask_lit = ppfd > 0.01
-    if np.any(mask_lit):
-        avg_val = np.average(ppfd[mask_lit], weights=areas[mask_lit])
-    else:
-        avg_val = 0.0
+    avg_val = np.average(ppfd[mask_lit], weights=areas[mask_lit]) if np.any(mask_lit) else 0.0
 
     return {
         "species": species_name,
         "LCP_ref": LCP,
-        "grade_stats_area": stats_area, # Return area dict / 返回面积字典
-        "total_area": np.sum(areas),    # Total canopy area / 树冠总面积
-        "max_ppfd": np.max(ppfd),
-        "avg_ppfd": avg_val             # Corrected average value / 修正后的平均值
+        "grade_stats_area": stats_area,
+        "total_area": np.sum(areas),
+        # 【核心容错】防止因空树冠导致的 np.max 崩溃 / Prevent np.max crash on empty arrays
+        "max_ppfd": np.max(ppfd) if len(ppfd) > 0 else 0.0, 
+        "avg_ppfd": avg_val
     }
 
 # =========================================================================
-# Module 3: 3D Visualization / 模块三：3D 可视化
+# 模块三：3D 可视化系统 / Module 3: 3D Visualization System
 # =========================================================================
 def visualize_ppfd_3d(physics_result: Dict[str, Any], species_name: Optional[str] = None, show: bool = True, save_path: Optional[str] = None) -> None:
     """
-    Generate academic-grade dual-viewport 3D heatmaps.
     生成学术级双视口 3D PPFD 热力图。
+    Generate academic-grade dual-viewport 3D heatmaps.
     """
     pts = physics_result["centers"]
     ppfd = physics_result["ppfd_raw"]
     geo = physics_result["geo_params"]
     lp = physics_result["light_pos"]
     
-    # Font configuration (Includes Chinese support) / 字体配置 (包含中文支持)
+    # 字体配置 (包含中文支持) / Font configuration with Chinese support
     rcParams['font.family'] = ['Times New Roman', 'SimHei', 'Microsoft YaHei']
     rcParams['font.size'] = 10.5
     rcParams['axes.unicode_minus'] = False 
 
-    # Custom colormap for academic visual representation / 为学术可视化定制红绿渐变色图
+    # 为学术可视化定制红绿渐变色图 / Custom colormap for academic visual representation
     colors = ["#006400", "#32CD32", "#FFFF00", "#FF0000"]
     custom_cmap = mcolors.LinearSegmentedColormap.from_list("GreenRed", colors, N=100)
     
-    # Generate trunk geometry for visual context / 生成树干几何体用于视觉参照
+    # --- 【核心修复：动态计算坐标轴边界与比例】 / Dynamic Coordinate Axis Calculation ---
+    # 根据用户实际输入的树高和灯高，计算 Z 轴上限 (加 1 米缓冲) / Calculate Z-axis max limit
+    tree_h = geo.get("tree_height", 10.0)
+    light_z = lp["z"] if lp else 0.0
+    max_z = max(tree_h, light_z) + 1.0
+    
+    # 根据冠幅计算 X/Y 轴范围 (加 1 米缓冲，最少 4 米) / Calculate X/Y axis limits
+    crown_w = geo.get("crown_width", 5.0)
+    max_xy = max(4.0, crown_w / 2.0 + 1.0)
+    # -------------------------------------------------------------------------
+    
+    # 生成树干几何体用于视觉参照 / Generate trunk geometry for visual context
     bh = geo["branch_height"]
     z_trunk = np.linspace(0, bh, 20)
     theta_trunk = np.linspace(0, 2*np.pi, 30)
@@ -150,28 +159,30 @@ def visualize_ppfd_3d(physics_result: Dict[str, Any], species_name: Optional[str
     if species_name:
         fig.suptitle(f"Light Analysis: {species_name}", fontsize=14, y=0.95)
     
-    # --- Left Plot (Global View) / 左图 (全局视角) ---
+    # === 左图 (全局视角) / Left Plot (Global View) ===
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    sc1 = ax1.scatter(pts[:,0], pts[:,1], pts[:,2], c=ppfd, cmap=custom_cmap, s=6, vmin=0, vmax=np.max(ppfd))
+    sc1 = ax1.scatter(pts[:,0], pts[:,1], pts[:,2], c=ppfd, cmap=custom_cmap, s=6, vmin=0, vmax=np.max(ppfd) if len(ppfd)>0 else 1)
     ax1.plot_surface(X_trunk, Y_trunk, Zg, color='#5D4037', shade=True, alpha=1.0)
     
-    # Plot light source / 绘制光源位置
+    # 绘制光源位置 / Plot light source
     if lp:
         ax1.scatter([lp["x"]], [lp["y"]], [lp["z"]], c='#FFD700', s=200, marker='*', zorder=10)
         ax1.plot([lp["x"], lp["x"]], [lp["y"], lp["y"]], [0, lp["z"]], 'k--', lw=0.8)
     
+    # 动态应用自适应坐标轴和严格物理等比例 / Apply dynamic limits and strict aspect ratio
     ax1.set_xlabel('X (m)'); ax1.set_ylabel('Y (m)'); ax1.set_zlabel('Height (m)')
-    ax1.set_xlim([-4, 4]); ax1.set_ylim([-4, 4]); ax1.set_zlim([0, 10])
-    ax1.set_box_aspect((10, 10, 10))
+    ax1.set_xlim([-max_xy, max_xy]); ax1.set_ylim([-max_xy, max_xy]); ax1.set_zlim([0, max_z])
+    ax1.set_box_aspect((max_xy*2, max_xy*2, max_z)) 
+    
     ax1.view_init(elev=25, azim=-45)
     ax1.text2D(0.0, 0.95, "a", transform=ax1.transAxes, fontsize=18, fontweight='bold')
     
-    # --- Right Plot (Focus View) / 右图 (局部对齐视角) ---
+    # === 右图 (局部对齐视角) / Right Plot (Focus View) ===
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
-    sc2 = ax2.scatter(pts[:,0], pts[:,1], pts[:,2], c=ppfd, cmap=custom_cmap, s=10, vmin=0, vmax=np.max(ppfd))
+    sc2 = ax2.scatter(pts[:,0], pts[:,1], pts[:,2], c=ppfd, cmap=custom_cmap, s=10, vmin=0, vmax=np.max(ppfd) if len(ppfd)>0 else 1)
     ax2.plot_surface(X_trunk, Y_trunk, Zg, color='#5D4037', shade=True)
     
-    # Auto-align view to the point with maximum PPFD / 自动对齐视角至最大光强点
+    # 自动对齐视角至最大光强点 / Auto-align view to the point with maximum PPFD
     if len(ppfd) > 0:
         idx_max = np.argmax(ppfd)
         p_max = pts[idx_max]
@@ -179,12 +190,14 @@ def visualize_ppfd_3d(physics_result: Dict[str, Any], species_name: Optional[str
         elev_angle = np.degrees(np.arctan2(p_max[2], np.sqrt(p_max[0]**2 + p_max[1]**2)))
         ax2.view_init(elev=max(20, elev_angle), azim=azim)
         
+    # 与左图保持绝对一致的动态坐标轴与比例 / Maintain identical dynamic limits and aspect ratio with the left plot
     ax2.set_xlabel('X (m)'); ax2.set_ylabel('Y (m)'); ax2.set_zlabel('Height (m)')
-    ax2.set_xlim([-4, 4]); ax2.set_ylim([-4, 4]); ax2.set_zlim([0, 6])
-    ax2.set_box_aspect((10, 10, 10))
+    ax2.set_xlim([-max_xy, max_xy]); ax2.set_ylim([-max_xy, max_xy]); ax2.set_zlim([0, max_z])
+    ax2.set_box_aspect((max_xy*2, max_xy*2, max_z))
+    
     ax2.text2D(0.0, 0.95, "b", transform=ax2.transAxes, fontsize=18, fontweight='bold')
     
-    # Colorbar configuration / 颜色条配置
+    # 颜色条配置 / Colorbar configuration
     cbar = fig.colorbar(sc2, ax=[ax1, ax2], fraction=0.03, pad=0.05, shrink=0.8)
     cbar.set_label('PPFD ($\mu mol \cdot m^{-2} \cdot s^{-1}$)')
     
