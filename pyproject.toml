@@ -12,3 +12,5 @@ dependencies = [
     "matplotlib",
     "openpyxl"
 ]
+[tool.setuptools.package-data]
+treelight = ["*.ies"]
