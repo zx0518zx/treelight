@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 # ==================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "treelight_config.json")
+
 # 默认内置 IES 文件的路径 (飞利浦 Luma gen2 核心参数简写)
 # Path to the default built-in IES file (abbreviation of Philips Luma gen2 core parameters)
 DEFAULT_IES_PATH = os.path.join(BASE_DIR, "Philips_Luma_gen2_BGP704.ies")
@@ -54,30 +55,24 @@ class ConfigManager:
         # 3. Attempt to load local user-defined configuration file upon initialization
         self.load_config()
 
-    # --- 持久化接口 (Persistence Interfaces) ---
     def load_config(self) -> None:
         """
-        读取本地配置文件 
-        Load local configuration file
+        读取本地配置文件 / Load local configuration file
         """
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    # 更新树种配置 / Update species configuration
                     if "species" in data and isinstance(data["species"], dict): 
                         self._species_db.update(data["species"])
-                    # 更新色温因子配置 / Update color temperature factor configuration
                     if "color_temp" in data and isinstance(data["color_temp"], dict): 
                         self._light_factors.update(data["color_temp"])
             except Exception as e:
-                # 读取失败时抛出警告 / Issue warning upon read failure
                 logging.warning(f"Failed to load user config file: {e}")
 
     def save_config(self) -> None:
         """
-        保存当前配置到本地文件 
-        Save current configuration to local file
+        保存当前配置到本地文件 / Save current configuration to local file
         """
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -86,16 +81,13 @@ class ConfigManager:
                     "color_temp": self._light_factors
                 }, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            # 保存失败时抛出错误 / Issue error upon save failure
             logging.error(f"Failed to save config file: {e}")
 
-    # --- 用户接口：添加/修改数据 (User Interfaces: Add/Update Data) ---
     def register_species(self, name: str, alpha: float, rd: float, lcp: float, lsp: Optional[float] = None) -> None:
         """
         用户调用此函数添加自定义树种，并自动持久化。
         User calls this function to add a custom tree species, and it persists automatically.
         """
-        # 名称和数值校验 / Validation of name and numerical values
         if not name or not isinstance(name, str):
             raise ValueError("Species name must be a valid string. / 树种名称必须是有效的字符串。")
         if alpha < 0 or rd < 0 or lcp < 0:
@@ -107,7 +99,6 @@ class ConfigManager:
             "LCP": float(lcp),
             "LSP": float(lsp) if lsp else 0.0
         }
-        # 更新并保存 / Update and save
         self.save_config()
         logging.info(f"Species registered successfully / 树种注册成功: {name}")
 
@@ -116,68 +107,46 @@ class ConfigManager:
         用户调用此函数添加自定义光源转换因子，并自动持久化。
         User calls this function to add a custom light source conversion factor, and it persists automatically.
         """
-        # 光源参数校验 / Validation of light source parameters
         if not name or not isinstance(name, str):
             raise ValueError("Light name must be a valid string. / 光源名称必须是有效的字符串。")
         if factor <= 0:
             raise ValueError("Conversion factor must be strictly positive. / 转换因子必须为正数。")
             
         self._light_factors[name] = float(factor)
-        # 更新并保存 / Update and save
         self.save_config()
         logging.info(f"Light source registered successfully / 光源注册成功: {name}")
 
-    # --- 内部接口：获取数据 (Internal Interfaces: Get Data) ---
     def get_species(self, name: str) -> Dict[str, float]:
-        """
-        获取指定树种的生理学参数字典。
-        Get the physiological parameters dictionary of the specified species.
-        """
+        """获取指定树种的生理学参数字典 / Get the physiological parameters of the specified species."""
         if name not in self._species_db:
             valid = list(self._species_db.keys())
-            raise ValueError(f"Unknown species '{name}'. Available: {valid} / 未知树种 '{name}'。可用树种: {valid}")
+            raise ValueError(f"Unknown species '{name}'. Available: {valid} / 未知树种 '{name}'。")
         return self._species_db[name]
 
     def get_light_factor(self, name: str) -> float:
-        """
-        获取指定光源的 PPFD 转换因子。
-        Get the PPFD conversion factor of the specified light source.
-        """
+        """获取指定光源的 PPFD 转换因子 / Get the PPFD conversion factor of the specified light source."""
         if name not in self._light_factors:
             valid = list(self._light_factors.keys())
-            raise ValueError(f"Unknown light source '{name}'. Available: {valid} / 未知光源 '{name}'。可用光源: {valid}")
+            raise ValueError(f"Unknown light source '{name}'. Available: {valid} / 未知光源 '{name}'。")
         return self._light_factors[name]
     
     def list_species(self) -> List[str]:
-        """
-        返回当前可用的所有树种名称列表。
-        Return a list of all currently available tree species names.
-        """
+        """返回所有树种名称列表 / Return a list of all tree species names."""
         return list(self._species_db.keys())
 
     def list_lights(self) -> List[str]:
-        """
-        返回当前可用的所有光源名称列表。
-        Return a list of all currently available light source names.
-        """
+        """返回所有光源名称列表 / Return a list of all light source names."""
         return list(self._light_factors.keys())
         
     def get_default_ies(self) -> str:
-        """
-        获取系统内置默认 IES 文件的绝对路径。
-        Get the absolute path of the system's built-in default IES file.
-        """
+        """获取默认 IES 文件的绝对路径 / Get the absolute path of the default IES file."""
         return DEFAULT_IES_PATH
 
 # ==================================================
 # 实例化与接口暴露 (Instantiation and Interface Exposure)
 # ==================================================
-# 单例模式：全局共享一个配置管理器实例 
-# Singleton Pattern: Globally share a single configuration manager instance
 _manager = ConfigManager()
 
-# 暴露给外部的模块级函数 
-# Module-level functions exposed to the outside
 register_species = _manager.register_species
 register_light = _manager.register_light
 get_species_params = _manager.get_species
