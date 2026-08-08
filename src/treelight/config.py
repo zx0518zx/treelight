@@ -18,8 +18,8 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "treelight_config.json")
 
-# 移除内置 IES 配置，强制用户必须自行输入配光文件，确保计算过程科学严谨
-# Removed built-in IES configuration to mandate user-provided photometric files for scientific rigor
+# [已移除内置 IES 路径，强制用户上传文件以保证科学严谨性]
+# [Removed built-in IES path to enforce scientific rigor by requiring user uploads]
 
 class ConfigManager:
     """
@@ -38,7 +38,8 @@ class ConfigManager:
             "无患子 (Sapindus mukorossi)": {"alpha": 0.051, "Rd": 0.614, "LCP": 18.5, "LSP": 1360},
             "榉树 (Zelkova serrata)": {"alpha": 0.04,  "Rd": 1.30, "LCP": 37.8, "LSP": 1260},
             "朴树 (Celtis sinensis)": {"alpha": 0.071, "Rd": 1.26, "LCP": 19.9, "LSP": 1320},
-            "合欢 (Albizia julibrissin)": {"alpha": 0.038, "Rd": 1.30, "LCP": 34.7, "LSP": 1100}
+            "合欢 (Albizia julibrissin)": {"alpha": 0.038, "Rd": 1.30, "LCP": 34.7, "LSP": 1100},
+            "默认阔叶树 (Default Broadleaf)": {"alpha": 0.045, "Rd": 0.80, "LCP": 25.0, "LSP": 1200}
         }
 
         # 2. 内置光源转换因子
@@ -116,37 +117,25 @@ class ConfigManager:
         logging.info(f"Light source registered successfully / 光源注册成功: {name}")
 
     def get_species(self, name: str) -> Dict[str, float]:
-        """
-        获取指定树种的生理学参数字典。
-        Get the physiological parameters dictionary of the specified species.
-        """
+        """获取指定树种的生理学参数字典 / Get the physiological parameters of the specified species."""
         if name not in self._species_db:
             valid = list(self._species_db.keys())
             raise ValueError(f"Unknown species '{name}'. Available: {valid} / 未知树种 '{name}'。")
         return self._species_db[name]
 
     def get_light_factor(self, name: str) -> float:
-        """
-        获取指定光源的 PPFD 转换因子。
-        Get the PPFD conversion factor of the specified light source.
-        """
+        """获取指定光源的 PPFD 转换因子 / Get the PPFD conversion factor of the specified light source."""
         if name not in self._light_factors:
             valid = list(self._light_factors.keys())
             raise ValueError(f"Unknown light source '{name}'. Available: {valid} / 未知光源 '{name}'。")
         return self._light_factors[name]
     
     def list_species(self) -> List[str]:
-        """
-        返回所有树种名称列表。
-        Return a list of all tree species names.
-        """
+        """返回所有树种名称列表 / Return a list of all tree species names."""
         return list(self._species_db.keys())
 
     def list_lights(self) -> List[str]:
-        """
-        返回所有光源名称列表。
-        Return a list of all light source names.
-        """
+        """返回所有光源名称列表 / Return a list of all light source names."""
         return list(self._light_factors.keys())
 
 # ==================================================
