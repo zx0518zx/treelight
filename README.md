@@ -88,136 +88,97 @@ pip install .
 Here is a quick example of how to programmatically execute a single-tree 3D radiative simulation and evaluate its implicit carbon sink:
 以下是如何在 Python 脚本中调用核心库进行单树 3D 光照模拟与隐性碳汇评估的完整示例：
 ```text
-import os
-import numpy as np
+# -*- coding: utf-8 -*-
+"""
+treelight Framework: Core API Usage & Function Tutorial
+treelight 框架：核心函数与 API 调用指南
+"""
 import treelight as tl
 
-
-
-def run_chinese_verification():
-    print("==================================================")
-    print("  treelight 框架：全功能自动化验证与测试脚本       ")
-    print("==================================================\n")
-
-    # --------------------------------------------------
-    # 1. 验证所有数据库与配置相关的核心命令
-    # --------------------------------------------------
-    print("[1/4] 正在验证底层数据库的 6 个核心配置命令...")
+def api_demonstration():
     
-    # 命令 1：获取系统当前所有可用的树种列表
-    initial_species = tl.get_available_species()
-    print(f"-> [命令 1] 系统初始置入树种: {initial_species}")
+    # =====================================================================
+    # Module 1: Database & Parameter Management / 模块一：底层数据库与参数管理
+    # =====================================================================
     
-    # 命令 2：注册新的自定义树种（自动触发本地 JSON 文件的读写与持久化保存）
-    print("-> [命令 2] 正在注册自定义树种 'Platanus_orientalis'...")
-    tl.register_species(name="Platanus_orientalis", alpha=0.062, Rd=1.15, LCP=24.5, LSP=1500)
+    # 1. Get all available tree species / 获取系统内置的所有树种列表
+    species_list = tl.get_available_species()
     
-    # 命令 3：精确查询新注册树种的生理参数分布
-    species_params = get_species_params("Platanus_orientalis")
-    print(f"-> [命令 3] 读取 'Platanus_orientalis' 的核心生理参数: {species_params}")
+    # 2. Register a new custom species / 注册新的自定义树种 (会自动持久化保存至本地 json)
+    # alpha: Apparent Quantum Yield (表观量子效率)
+    # Rd: Dark Respiration Rate (暗呼吸速率)
+    # LCP: Light Compensation Point (光补偿点)
+    # LSP: Light Saturation Point (光饱和点)
+    tl.register_species(name="Platanus_orientalis", alpha=0.062, rd=1.15, lcp=24.5, lsp=1500)
     
-    # 命令 4：获取系统当前所有支持的光源光谱因子列表
-    initial_lights = get_available_lights()
-    print(f"-> [命令 4] 系统初始光源配置表: {initial_lights}")
+    # 3. Retrieve parameters for a specific species / 调取指定树种的核心生理参数
+    species_params = tl.get_species_params("Platanus_orientalis")
     
-    # 命令 5：注册新的自定义光源转换系数
-    print("-> [命令 5] 正在注册自定义光源系数 'Experimental_LED'...")
+    # 4. Get all available light sources / 获取系统支持的光源光谱转换因子列表
+    light_factors = tl.get_available_lights()
+    
+    # 5. Register a custom light source / 注册自定义光源转换因子
     tl.register_light(name="Experimental_LED", factor=0.0165)
-    
-    # 命令 6：获取特定自定义光源的转换因子
-    light_factor = tl.get_ppfd_factor("Experimental_LED")
-    print(f"-> [命令 6] 成功调取 'Experimental_LED' 转换因子: {light_factor}")
-    
-    # 检测本地配置文件是否成功生成
-    if os.path.exists("treelight_config.json"):
-        print("✅ 成功：本地数据库文件 'treelight_config.json' 已正确生成并实现持久化。")
-    else:
-        print("❌ 失败：本地数据库持久化配置失败。")
-    print("-" * 50 + "\n")
 
-# --------------------------------------------------
-    # 2. 光度数据解析与 3D 网格生成
-    # --------------------------------------------------
-    print("[2/4] 正在验证 IES 配光曲线全量解析与 3D 几何网格离散化...")
-    
-    # 【修改点】改为交互式要求输入文件路径，直到输入正确为止
-    while True:
-        ies_path = input("👉 请输入 IES 文件的完整绝对路径 (提示: 可以直接将文件拖拽到此窗口中): ").strip()
-        # 自动去除直接拖拽文件时可能产生的首尾引号
-        ies_path = ies_path.strip('\'"') 
-        
-        if os.path.exists(ies_path):
-            print(f"✅ 成功找到文件: {ies_path}")
-            break
-        else:
-            print(f"❌ 找不到文件: {ies_path}，请检查路径是否正确并重新输入！\n")
 
-    # 执行解析
+    # =====================================================================
+    # Module 2: Photometric Data Parsing / 模块二：配光文件解析
+    # =====================================================================
+    
+    ies_path = "example/Philips_Luma_gen2_BGP704.ies" 
+    
+    # 6. Parse the IES photometric curve file / 解析 IES 空间配光曲线文件
     ies_data, msg = tl.parse_ies_full(ies_path)
-    print(f"-> IES 解析器返回日志: {msg}")
+
+
+    # =====================================================================
+    # Module 3: 3D Spatial Light Field Simulation / 模块三：3D 空间光场模拟引擎
+    # =====================================================================
     
-    # 设定几何树冠参数
+    # Canopy geometry parameters / 树冠几何形态参数
     geo_params = {
-        "canopy_type": "半椭球体",  # 参数化半椭球体连续边界
+        "canopy_type": "半椭球体/Half Ellipsoid", 
         "tree_height": 8.5,
         "branch_height": 3.0,
         "crown_width": 5.0
     }
-    print("✅ 成功：光度网格插值就绪，树冠理想几何边界条件构建完成。")
-    print("-" * 50 + "\n")
-
-    # --------------------------------------------------
-    # 3. 3D 光场辐射计算
-    # --------------------------------------------------
-    print("[3/4] 正在启动 3D 空间光场辐射模拟核心引擎...")
-    light_pos_list = [{"x": 1.8, "y": 2.5, "z": 9.5}]  # 模拟路灯相对位置
+    
+    # Light source relative coordinates / 路灯相对坐标 (基于树干底部原点)
+    light_pos = [{"x": 1.8, "y": 2.5, "z": 9.5}] 
+    
+    # Environmental configurations / 物理环境配置
     env_params = {
-        "precision": 0.05,  # 斐波那契表面网格离散精度 (m²)
-        "maintenance_factor": 0.85,
-        "light_output_ratio": 0.90,
-        "ppfd_factor": tl.get_ppfd_factor("3000K LED (0.0143)")
+        "precision": 0.05,            # Fibonacci mesh resolution / 斐波那契网格离散精度 (m²)
+        "maintenance_factor": 0.85,   # Maintenance factor / 维护系数
+        "light_output_ratio": 0.90,   # Light output ratio / 灯具输出效率
+        "ppfd_factor": tl.get_ppfd_factor("3000K LED") # PPFD conversion factor / 色温转换因子
     }
     
-    physics_result = tl.calculate_canopy_ppfd(geo_params, light_pos_list, ies_data, env_params)
-    print(f"-> 斐波那契点云成功离散出树冠外表面网格顶点数: {len(physics_result['centers'])}")
-    print("✅ 成功：空间光学平方反比与双线性光强插值计算执行完毕。")
-    print("-" * 50 + "\n")
+    # 7. Execute core ray-tracing and radiative simulation / 执行核心三维光场辐射与网格映射模拟
+    physics_res = tl.calculate_canopy_ppfd(geo_params, light_pos, ies_data, env_params)
 
-# --------------------------------------------------
-    # 4. 生态学评估与隐性碳汇量化
-    # --------------------------------------------------
-    print("[4/4] 正在量化夜间受光面轻量化分级与隐性碳汇增量...")
-    
-    # 运行生态学评估引擎
-    grade_stats = tl.grade_light_environment(physics_result, "Platanus_orientalis")
-    carbon_stats = tl.calculate_implicit_carbon(physics_result, "Platanus_orientalis", hours=4380)
-    
-    # 提取分级面积数据
-    areas = grade_stats["grade_stats_area"]
-    
-    print("\n【光环境物理与生态指标核算报告】")
-    print(f"📍 光源相对坐标: X={light_pos_list[0]['x']}m, Y={light_pos_list[0]['y']}m, H={light_pos_list[0]['z']}m (基于树干底端原点)")
-    print(f"🌲 树冠外边界总表面积: {grade_stats['total_area']:.2f} m²")
-    print(f"💡 冠层接收到的最大光强 (Max PPFD): {grade_stats['max_ppfd']:.2f} μmol/(m²·s)")
-    print(f"📊 受光面平均有效光强 (PPFD > 0.01): {grade_stats['avg_ppfd']:.2f} μmol/(m²·s)")
-    
-    print("\n【冠层受光面积梯度分布】")
-    print(f"  ├─ [微弱光扰] 0.01 - 0.1 μmol/(m²·s) : {areas.get('0.01-0.1', 0):.2f} m²")
-    print(f"  ├─ [中等光扰] 0.1 - 1.0 μmol/(m²·s)  : {areas.get('0.1-1.0', 0):.2f} m²")
-    print(f"  ├─ [强光扰动] 1.0 - LCP 光补偿点      : {areas.get('1.0-LCP', 0):.2f} m²")
-    print(f"  └─ [有效碳汇] > LCP 光补偿点          : {areas.get('>LCP', 0):.2f} m²")
-    
-    print(f"\n🌍 人造光辐射带来的年度隐性碳汇贡献总收益: {carbon_stats['carbon_g']:.4f} g CO2")
-    print("✅ 成功：生态学增量效应解析模块完成测试。")
-    print("\n==================================================")
-    print("  测试通过！系统内所有底层科学计算与数据库功能表现正常。 ")
-    print("==================================================")
 
-    # 如需查看 3D 热力图，请取消下行注释
-    # tl.visualize_ppfd_3d(physics_result, species_name="Platanus_orientalis", show=True)
+    # =====================================================================
+    # Module 4: Ecological Evaluation & Carbon Sink / 模块四：生态学评估与碳汇量化
+    # =====================================================================
+    
+    # 8. Calculate light distribution gradients and areas / 计算光强梯度分级与受光面积分布
+    grade_stats = tl.grade_light_environment(physics_res, "Platanus_orientalis")
+    
+    # 9. Calculate implicit annual carbon sink / 计算年度隐性碳减排量 (默认使用内置标准时间积分)
+    carbon_stats = tl.calculate_implicit_carbon(physics_res, "Platanus_orientalis")
+
+
+    # =====================================================================
+    # Module 5: Visualization / 模块五：3D 可视化渲染
+    # =====================================================================
+    
+    # 10. Render the 3D PPFD heatmap (Optional) / 渲染 3D 树冠光环境热力图 (可选)
+    # tl.visualize_ppfd_3d(physics_res, species_name="Platanus_orientalis", show=True)
 
 if __name__ == "__main__":
-    run_chinese_verification();
+    # Call the demonstration function / 调用演示函数
+    api_demonstration()
 ```
 ---
 🖥️ Graphical User Interface (图形用户界面)
