@@ -90,95 +90,72 @@ Here is a quick example of how to programmatically execute a single-tree 3D radi
 ```text
 # -*- coding: utf-8 -*-
 """
-treelight Framework: Core API Usage & Function Tutorial
-treelight 框架：核心函数与 API 调用指南
+treelight Framework: Pure API Reference Guide
+treelight 框架：纯净版 API 接口调用指南
 """
 import treelight as tl
 
-def api_demonstration():
+def api_reference():
+    # =========================================================
+    # 1. 数据库与配置相关 API / Database & Configuration APIs
+    # =========================================================
     
-    # =====================================================================
-    # Module 1: Database & Parameter Management / 模块一：底层数据库与参数管理
-    # =====================================================================
+    # [API 1] 注册自定义树种 / Register custom species
+    tl.register_species(name="My_Tree", alpha=0.06, rd=1.2, lcp=25.0, lsp=1500)
     
-    # 1. Get all available tree species / 获取系统内置的所有树种列表
+    # [API 2] 注册自定义光源 / Register custom light source
+    tl.register_light(name="My_LED", factor=0.015)
+    
+    # [API 3] 获取所有可用树种列表 / Get all available species
     species_list = tl.get_available_species()
     
-    # 2. Register a new custom species / 注册新的自定义树种 (会自动持久化保存至本地 json)
-    # alpha: Apparent Quantum Yield (表观量子效率)
-    # Rd: Dark Respiration Rate (暗呼吸速率)
-    # LCP: Light Compensation Point (光补偿点)
-    # LSP: Light Saturation Point (光饱和点)
-    tl.register_species(name="Platanus_orientalis", alpha=0.062, rd=1.15, lcp=24.5, lsp=1500)
+    # [API 4] 获取所有可用光源列表 / Get all available lights
+    light_list = tl.get_available_lights()
     
-    # 3. Retrieve parameters for a specific species / 调取指定树种的核心生理参数
-    species_params = tl.get_species_params("Platanus_orientalis")
+    # [API 5] 获取指定树种的生理参数 / Get parameters of a specific species
+    my_tree_params = tl.get_species_params("My_Tree")
     
-    # 4. Get all available light sources / 获取系统支持的光源光谱转换因子列表
-    light_factors = tl.get_available_lights()
-    
-    # 5. Register a custom light source / 注册自定义光源转换因子
-    tl.register_light(name="Experimental_LED", factor=0.0165)
+    # [API 6] 获取指定光源的转换因子 / Get conversion factor of a specific light
+    my_led_factor = tl.get_ppfd_factor("My_LED")
 
 
-    # =====================================================================
-    # Module 2: Photometric Data Parsing / 模块二：配光文件解析
-    # =====================================================================
+    # =========================================================
+    # 2. 物理光场计算相关 API / Physical Light Field APIs
+    # =========================================================
     
-    ies_path = "example/Philips_Luma_gen2_BGP704.ies" 
+    # 准备基础参数 (Mock parameters)
+    ies_file_path = "example/test.ies"
+    geo_params = {"canopy_type": "Half Ellipsoid", "tree_height": 8.5, "branch_height": 3.0, "crown_width": 5.0}
+    light_pos = [{"x": 1.8, "y": 2.5, "z": 9.5}]
+    env_params = {"precision": 0.1, "maintenance_factor": 0.85, "light_output_ratio": 0.9, "ppfd_factor": my_led_factor}
     
-    # 6. Parse the IES photometric curve file / 解析 IES 空间配光曲线文件
-    ies_data, msg = tl.parse_ies_full(ies_path)
-
-
-    # =====================================================================
-    # Module 3: 3D Spatial Light Field Simulation / 模块三：3D 空间光场模拟引擎
-    # =====================================================================
+    # [API 7] 解析 IES 配光文件 / Parse IES file
+    ies_data, parse_msg = tl.parse_ies_full(ies_file_path)
     
-    # Canopy geometry parameters / 树冠几何形态参数
-    geo_params = {
-        "canopy_type": "半椭球体/Half Ellipsoid", 
-        "tree_height": 8.5,
-        "branch_height": 3.0,
-        "crown_width": 5.0
-    }
-    
-    # Light source relative coordinates / 路灯相对坐标 (基于树干底部原点)
-    light_pos = [{"x": 1.8, "y": 2.5, "z": 9.5}] 
-    
-    # Environmental configurations / 物理环境配置
-    env_params = {
-        "precision": 0.05,            # Fibonacci mesh resolution / 斐波那契网格离散精度 (m²)
-        "maintenance_factor": 0.85,   # Maintenance factor / 维护系数
-        "light_output_ratio": 0.90,   # Light output ratio / 灯具输出效率
-        "ppfd_factor": tl.get_ppfd_factor("3000K LED") # PPFD conversion factor / 色温转换因子
-    }
-    
-    # 7. Execute core ray-tracing and radiative simulation / 执行核心三维光场辐射与网格映射模拟
+    # [API 8] 计算树冠 3D 表面 PPFD 分布 / Calculate 3D canopy PPFD
     physics_res = tl.calculate_canopy_ppfd(geo_params, light_pos, ies_data, env_params)
 
 
-    # =====================================================================
-    # Module 4: Ecological Evaluation & Carbon Sink / 模块四：生态学评估与碳汇量化
-    # =====================================================================
+    # =========================================================
+    # 3. 生态学评估相关 API / Ecological Evaluation APIs
+    # =========================================================
     
-    # 8. Calculate light distribution gradients and areas / 计算光强梯度分级与受光面积分布
-    grade_stats = tl.grade_light_environment(physics_res, "Platanus_orientalis")
+    # [API 9] 评估光环境分级与受光面积 / Grade light environment and surface areas
+    grade_stats = tl.grade_light_environment(physics_res, species_name="My_Tree")
     
-    # 9. Calculate implicit annual carbon sink / 计算年度隐性碳减排量 (默认使用内置标准时间积分)
-    carbon_stats = tl.calculate_implicit_carbon(physics_res, "Platanus_orientalis")
+    # [API 10] 计算年度隐性碳减排量 / Calculate annual implicit carbon reduction
+    carbon_stats = tl.calculate_implicit_carbon(physics_res, species_name="My_Tree")
 
 
-    # =====================================================================
-    # Module 5: Visualization / 模块五：3D 可视化渲染
-    # =====================================================================
+    # =========================================================
+    # 4. 可视化相关 API / Visualization API
+    # =========================================================
     
-    # 10. Render the 3D PPFD heatmap (Optional) / 渲染 3D 树冠光环境热力图 (可选)
-    # tl.visualize_ppfd_3d(physics_res, species_name="Platanus_orientalis", show=True)
+    # [API 11] 渲染 3D 树冠光环境热力图 / Render 3D PPFD heatmap (Optional)
+    # tl.visualize_ppfd_3d(physics_res, species_name="My_Tree", show=True)
 
 if __name__ == "__main__":
-    # Call the demonstration function / 调用演示函数
-    api_demonstration()
+    api_reference()
 ```
 ---
 🖥️ Graphical User Interface (图形用户界面)
