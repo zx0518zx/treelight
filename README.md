@@ -60,10 +60,13 @@ treelight/
 │       ├── light_analysis.py    # 3D light field radiative engine & visualization
 │       └── ecology.py           # Ecological grading & implicit carbon sink calculator
 ├── example/
-│   ├── sample.csv        # Standard batch-processing tabular input template
-│   └── test.ies           # Sample batwing light distribution curve file
+│   ├── sample.csv               # Standard batch-processing tabular input template
+│   ├── test.ies                 # Sample batwing light distribution curve file
+│   ├── demo_single.py           # Interactive single tree analysis demo script
+│   └── demo_batch.py            # Interactive batch tree analysis demo script
+├── tests/
+│   └── test_all_core.py         # Automated unit tests for core modules (pytest)
 ├── pyproject.toml               # Package build configuration & metadata (PEP 517/518)
-├──demo.py                       #test demo
 └── README.md                    # Project documentation (this file)
 ```
 ---
