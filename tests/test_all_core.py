@@ -35,10 +35,12 @@ def test_ies_parser_robustness():
 
 def test_physics_and_ecology_engine():
     """测试 3D 空间光场辐射模拟与隐性碳汇量化引擎"""
+    # 【修复点】补充上真实解析器会生成的 'grid' 键，满足底层引擎的调用期待
     dummy_ies_data = {
         'v_angles': np.array([0, 45, 90]),
         'h_angles': np.array([0, 90, 180, 270]),
-        'candela_values': np.ones((4, 3)) * 1000
+        'candela_values': np.ones((4, 3)) * 1000,
+        'grid': np.ones((4, 3)) * 1000
     }
     
     geo_params = {"canopy_type": "半椭球体/Half Ellipsoid", "tree_height": 8.0, "branch_height": 2.5, "crown_width": 4.0}
