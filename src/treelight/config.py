@@ -8,27 +8,38 @@ import json
 import logging
 from typing import Dict, List, Optional
 
-# 配置标准日志输出 / Configure standard logging output
+# Configure standard logging output / 配置标准日志输出
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 # ==================================================
-# 路径安全配置：确保文件始终在当前包的目录下读写
-# Path safety configuration: Ensure files are always read/written in the current package directory
+# Path safety configuration (User System Directory)
+# 路径安全配置（用户系统目录）
 # ==================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(BASE_DIR, "treelight_config.json")
+# Get the user's home directory (Cross-platform: Windows/macOS/Linux)
+# 获取当前操作系统的用户主目录 (跨平台支持：Windows/macOS/Linux)
+USER_HOME = os.path.expanduser("~")
 
-# [已移除内置 IES 路径，强制用户上传文件以保证科学严谨性]
-# [Removed built-in IES path to enforce scientific rigor by requiring user uploads]
+# Create a hidden directory in the user's home folder for configuration
+# 在用户目录下创建一个隐藏文件夹专门存放配置
+CONFIG_DIR = os.path.join(USER_HOME, ".treelight")
+
+# Automatically create the directory if it does not exist
+# 如果文件夹不存在，则自动创建
+if not os.path.exists(CONFIG_DIR):
+    os.makedirs(CONFIG_DIR)
+
+# The config file will be securely generated in the user directory
+# 配置文件将安全地生成在用户系统目录下
+CONFIG_FILE = os.path.join(CONFIG_DIR, "treelight_config.json")
 
 class ConfigManager:
     """
-    配置管理器：管理树种生理参数和光源因子，并支持本地持久化保存。
     Configuration Manager: Manages tree physiological parameters and light factors with local persistence.
+    配置管理器：管理树种生理参数和光源因子，并支持本地持久化保存。
     """
     def __init__(self):
-        # 1. 内置中英双语树种数据库 (学术标准名称对照)
         # 1. Built-in bilingual tree species database (Academic standard names mapping)
+        # 1. 内置中英双语树种数据库 (学术标准名称对照)
         self._species_db: Dict[str, Dict[str, float]] = {
             "香樟 (Cinnamomum camphora)": {"alpha": 0.072, "Rd": 1.53, "LCP": 23.1, "LSP": 1480},
             "悬铃木 (Platanus × acerifolia)": {"alpha": 0.058, "Rd": 1.08, "LCP": 25.3, "LSP": 1850},
@@ -42,8 +53,8 @@ class ConfigManager:
             "默认阔叶树 (Default Broadleaf)": {"alpha": 0.045, "Rd": 0.80, "LCP": 25.0, "LSP": 1200}
         }
 
-        # 2. 内置光源转换因子
         # 2. Built-in light source conversion factors
+        # 2. 内置光源转换因子
         self._light_factors: Dict[str, float] = {
             "3000K LED": 0.0143,
             "4000K LED": 0.0154,
@@ -51,13 +62,14 @@ class ConfigManager:
             "Universal White LED": 0.0150
         }
 
-        # 3. 初始化时尝试加载本地用户自定义配置文件
         # 3. Attempt to load local user-defined configuration file upon initialization
+        # 3. 初始化时尝试加载本地用户自定义配置文件
         self.load_config()
 
     def load_config(self) -> None:
         """
-        读取本地配置文件 / Load local configuration file
+        Load local configuration file
+        读取本地配置文件
         """
         if os.path.exists(CONFIG_FILE):
             try:
@@ -68,11 +80,12 @@ class ConfigManager:
                     if "color_temp" in data and isinstance(data["color_temp"], dict): 
                         self._light_factors.update(data["color_temp"])
             except Exception as e:
-                logging.warning(f"Failed to load user config file: {e}")
+                logging.warning(f"Failed to load user config file / 加载用户配置文件失败: {e}")
 
     def save_config(self) -> None:
         """
-        保存当前配置到本地文件 / Save current configuration to local file
+        Save current configuration to local file
+        保存当前配置到本地文件
         """
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -81,12 +94,12 @@ class ConfigManager:
                     "color_temp": self._light_factors
                 }, f, ensure_ascii=False, indent=4)
         except Exception as e:
-            logging.error(f"Failed to save config file: {e}")
+            logging.error(f"Failed to save config file / 保存配置文件失败: {e}")
 
     def register_species(self, name: str, alpha: float, rd: float, lcp: float, lsp: Optional[float] = None) -> None:
         """
-        用户调用此函数添加自定义树种，并自动持久化。
         User calls this function to add a custom tree species, and it persists automatically.
+        用户调用此函数添加自定义树种，并自动持久化。
         """
         if not name or not isinstance(name, str):
             raise ValueError("Species name must be a valid string. / 树种名称必须是有效的字符串。")
@@ -97,15 +110,15 @@ class ConfigManager:
             "alpha": float(alpha),
             "Rd": float(rd),
             "LCP": float(lcp),
-            "LSP": float(lsp) if lsp else 0.0
+            "LSP": float(lsp) if lsp is not None else 0.0
         }
         self.save_config()
         logging.info(f"Species registered successfully / 树种注册成功: {name}")
 
     def register_light(self, name: str, factor: float) -> None:
         """
-        用户调用此函数添加自定义光源转换因子，并自动持久化。
         User calls this function to add a custom light source conversion factor, and it persists automatically.
+        用户调用此函数添加自定义光源转换因子，并自动持久化。
         """
         if not name or not isinstance(name, str):
             raise ValueError("Light name must be a valid string. / 光源名称必须是有效的字符串。")
@@ -117,29 +130,42 @@ class ConfigManager:
         logging.info(f"Light source registered successfully / 光源注册成功: {name}")
 
     def get_species(self, name: str) -> Dict[str, float]:
-        """获取指定树种的生理学参数字典 / Get the physiological parameters of the specified species."""
+        """
+        Get the physiological parameters of the specified species.
+        获取指定树种的生理学参数字典。
+        """
         if name not in self._species_db:
             valid = list(self._species_db.keys())
             raise ValueError(f"Unknown species '{name}'. Available: {valid} / 未知树种 '{name}'。")
         return self._species_db[name]
 
     def get_light_factor(self, name: str) -> float:
-        """获取指定光源的 PPFD 转换因子 / Get the PPFD conversion factor of the specified light source."""
+        """
+        Get the PPFD conversion factor of the specified light source.
+        获取指定光源的 PPFD 转换因子。
+        """
         if name not in self._light_factors:
             valid = list(self._light_factors.keys())
             raise ValueError(f"Unknown light source '{name}'. Available: {valid} / 未知光源 '{name}'。")
         return self._light_factors[name]
     
     def list_species(self) -> List[str]:
-        """返回所有树种名称列表 / Return a list of all tree species names."""
+        """
+        Return a list of all tree species names.
+        返回所有树种名称列表。
+        """
         return list(self._species_db.keys())
 
     def list_lights(self) -> List[str]:
-        """返回所有光源名称列表 / Return a list of all light source names."""
+        """
+        Return a list of all light source names.
+        返回所有光源名称列表。
+        """
         return list(self._light_factors.keys())
 
 # ==================================================
-# 实例化与接口暴露 (Instantiation and Interface Exposure)
+# Instantiation and Interface Exposure
+# 实例化与接口暴露
 # ==================================================
 _manager = ConfigManager()
 
