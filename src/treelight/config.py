@@ -33,7 +33,7 @@ class ConfigManager:
     """
     def __init__(self):
         # 1. Built-in bilingual tree species database (academic name mapping) / 内置中英双语树种数据库（学术标准名称对照）
-        self._species_db: Dict[str, Dict[str, float]] = {
+        self._builtin_species: Dict[str, Dict[str, float]] = {
             "香樟 (Cinnamomum camphora)": {"alpha": 0.072, "Rd": 1.53, "LCP": 23.1, "LSP": 1480},
             "悬铃木 (Platanus × acerifolia)": {"alpha": 0.058, "Rd": 1.08, "LCP": 25.3, "LSP": 1850},
             "广玉兰 (Magnolia grandiflora)": {"alpha": 0.041, "Rd": 0.65, "LCP": 22.1, "LSP": 1150},
@@ -45,14 +45,16 @@ class ConfigManager:
             "合欢 (Albizia julibrissin)": {"alpha": 0.038, "Rd": 1.30, "LCP": 34.7, "LSP": 1100},
             "默认阔叶树 (Default Broadleaf)": {"alpha": 0.045, "Rd": 0.80, "LCP": 25.0, "LSP": 1200}
         }
+        self._species_db: Dict[str, Dict[str, float]] = dict(self._builtin_species)
 
         # 2. Built-in light source conversion factors / 内置光源转换因子
-        self._light_factors: Dict[str, float] = {
+        self._builtin_lights: Dict[str, float] = {
             "3000K LED": 0.0143,
             "4000K LED": 0.0154,
             "5000K LED": 0.0170,
             "Universal White LED": 0.0150
         }
+        self._light_factors: Dict[str, float] = dict(self._builtin_lights)
 
         # 3. Load the local user-defined configuration at initialization / 初始化时尝试加载本地用户自定义配置文件
         self.load_config()
@@ -103,6 +105,18 @@ class ConfigManager:
         self.save_config()
         logging.info(f"Species registered successfully / 树种注册成功: {name}")
 
+    def delete_species(self, name: str) -> None:
+        """
+        Delete a user-defined tree species and update local config. / 删除用户自定义树种并更新本地配置。
+        """
+        if name not in self._species_db:
+            raise ValueError(f"Unknown species '{name}'. / 未知树种 '{name}'。")
+        if name in self._builtin_species:
+            raise ValueError(f"Built-in species '{name}' cannot be deleted. / 内置默认树种 '{name}' 不可删除。")
+        del self._species_db[name]
+        self.save_config()
+        logging.info(f"Species deleted successfully / 树种删除成功: {name}")
+
     def register_light(self, name: str, factor: float) -> None:
         """
         Add a custom light source conversion factor and persist it automatically. / 添加自定义光源转换因子，并自动持久化。
@@ -115,6 +129,18 @@ class ConfigManager:
         self._light_factors[name] = float(factor)
         self.save_config()
         logging.info(f"Light source registered successfully / 光源注册成功: {name}")
+
+    def delete_light(self, name: str) -> None:
+        """
+        Delete a user-defined light source conversion factor and update local config. / 删除用户自定义光源转换因子并更新本地配置。
+        """
+        if name not in self._light_factors:
+            raise ValueError(f"Unknown light source '{name}'. / 未知光源 '{name}'。")
+        if name in self._builtin_lights:
+            raise ValueError(f"Built-in light source '{name}' cannot be deleted. / 内置默认光源 '{name}' 不可删除。")
+        del self._light_factors[name]
+        self.save_config()
+        logging.info(f"Light source deleted successfully / 光源删除成功: {name}")
 
     def get_species(self, name: str) -> Dict[str, float]:
         """
@@ -153,7 +179,9 @@ class ConfigManager:
 _manager = ConfigManager()
 
 register_species = _manager.register_species
+delete_species = _manager.delete_species
 register_light = _manager.register_light
+delete_light = _manager.delete_light
 get_species_params = _manager.get_species
 get_ppfd_factor = _manager.get_light_factor
 get_available_species = _manager.list_species
