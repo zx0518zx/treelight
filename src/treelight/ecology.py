@@ -5,7 +5,10 @@ Ecological Evaluation Module for Urban Trees
 """
 import numpy as np
 from typing import Dict, Any
-from .config import get_species_params
+try:
+    from .config import get_species_params
+except ImportError:
+    from treelight.config import get_species_params
 
 # =========================================================================
 # Module 1: Carbon Sink Calculation / 模块一：碳汇计算
