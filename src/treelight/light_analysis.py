@@ -64,8 +64,9 @@ def calculate_canopy_ppfd(
     Calculate the raw PPFD distribution on the canopy surface. / 计算树冠表面的 PPFD 原始物理分布。
 
     Supports linear superposition of multiple luminaires via `light_pos_list`, optional per-lamp
-    `yaw` (horizontal orientation, deg), `tilt` (upward elevation, deg), and `ies_data` (individual
-    parsed IES dict overriding the default `ies_data`), plus `cosine_correction` in `env_params`.
+    `yaw` (horizontal orientation, deg), `tilt` (upward elevation, deg), `ies_data` (individual
+    parsed IES dict overriding the default `ies_data`), and `ppfd_factor` (optional per-lamp spectral
+    conversion factor k overriding `env_params['ppfd_factor']`), plus `cosine_correction` in `env_params`.
     """
     prec = env_params.get("precision", 0.05)
 
@@ -90,6 +91,7 @@ def calculate_canopy_ppfd(
         yaw = float(lp.get("yaw", 0.0))
         tilt = float(lp.get("tilt", 0.0))
         lamp_ies = lp.get("ies_data") or ies_data         # 支持每个光源使用独立 IES 数据 / Per-lamp IES support
+        lamp_conv = float(lp["ppfd_factor"]) if lp.get("ppfd_factor") is not None else conv  # 支持独立 k 值 / Per-lamp k
 
         vec = centers - l_pos
         dists_sq = np.sum(vec**2, axis=1)                 # 距离平方 / Squared distance
@@ -114,7 +116,7 @@ def calculate_canopy_ppfd(
         # 逆平方定律与可选朗伯余弦定律 / Inverse-square law & optional Lambert's cosine law
         cos_term = cos_alpha[lit_mask] if use_cosine else 1.0
         E = (intensities / dists_sq[lit_mask]) * cos_term * mf * lor
-        total_ppfd[lit_mask] += E * conv
+        total_ppfd[lit_mask] += E * lamp_conv
 
     return {
         "centers": centers,
@@ -209,7 +211,8 @@ def _plot_ground_ies_footprint(
 
         theta, phi = compute_ies_angles(l_dir, yaw=yaw, tilt=tilt)
         intensities = np.array([get_interpolated_intensity(lamp_ies, t, p) for t, p in zip(theta, phi)])
-        ppfd_i = (intensities / dists_sq) * cos_g * mf * lor * conv
+        lamp_conv = float(lp["ppfd_factor"]) if lp.get("ppfd_factor") is not None else conv
+        ppfd_i = (intensities / dists_sq) * cos_g * mf * lor * lamp_conv
         total_ground_ppfd += ppfd_i
 
         # Record real peak illumination point on the ground for this lamp / 记录该灯在地面上的真实最亮点
