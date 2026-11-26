@@ -9,9 +9,14 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import rcParams
 from typing import Dict, List, Any, Optional, Tuple
 
-from .geometry import generate_fibonacci_mesh
-from .ies_parser import get_interpolated_intensity
-from .config import get_species_params
+try:
+    from .geometry import generate_fibonacci_mesh
+    from .ies_parser import get_interpolated_intensity
+    from .config import get_species_params
+except ImportError:
+    from treelight.geometry import generate_fibonacci_mesh
+    from treelight.ies_parser import get_interpolated_intensity
+    from treelight.config import get_species_params
 
 
 def compute_ies_angles(l_dir: np.ndarray, yaw: float = 0.0, tilt: float = 0.0) -> Tuple[np.ndarray, np.ndarray]:
@@ -36,7 +41,6 @@ def compute_ies_angles(l_dir: np.ndarray, yaw: float = 0.0, tilt: float = 0.0) -
     u1z = l_dir[:, 2]
 
     # Step 2: Project onto tilted luminaire local axes / 投影至仰角倾斜后的灯具局部坐标系
-    # Lamp forward axis tilts upward by +tilt; nadir axis swings forward toward +X by +tilt
     x_loc = u1x * cos_t + u1z * sin_t
     y_loc = u1y
     d_loc = u1x * sin_t - u1z * cos_t  # component along luminaire nadir (theta=0°)
@@ -52,7 +56,7 @@ def compute_ies_angles(l_dir: np.ndarray, yaw: float = 0.0, tilt: float = 0.0) -
 # =========================================================================
 def calculate_canopy_ppfd(
     geo_params: Dict[str, Any],
-    light_pos_list: List[Dict[str, float]],
+    light_pos_list: List[Dict[str, Any]],
     ies_data: Dict[str, Any],
     env_params: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -60,8 +64,8 @@ def calculate_canopy_ppfd(
     Calculate the raw PPFD distribution on the canopy surface. / 计算树冠表面的 PPFD 原始物理分布。
 
     Supports linear superposition of multiple luminaires via `light_pos_list`, optional per-lamp
-    `yaw` (horizontal orientation, deg) and `tilt` (upward elevation, deg), and an optional
-    `cosine_correction` boolean flag in `env_params` (default: True).
+    `yaw` (horizontal orientation, deg), `tilt` (upward elevation, deg), and `ies_data` (individual
+    parsed IES dict overriding the default `ies_data`), plus `cosine_correction` in `env_params`.
     """
     prec = env_params.get("precision", 0.05)
 
@@ -85,6 +89,7 @@ def calculate_canopy_ppfd(
         l_pos = np.array([lp["x"], lp["y"], lp["z"]], dtype=float)
         yaw = float(lp.get("yaw", 0.0))
         tilt = float(lp.get("tilt", 0.0))
+        lamp_ies = lp.get("ies_data") or ies_data         # 支持每个光源使用独立 IES 数据 / Per-lamp IES support
 
         vec = centers - l_pos
         dists_sq = np.sum(vec**2, axis=1)                 # 距离平方 / Squared distance
@@ -102,7 +107,7 @@ def calculate_canopy_ppfd(
 
         # 获取插值光强 / Get interpolated intensities from IES data
         intensities = np.array([
-            get_interpolated_intensity(ies_data, t, p)
+            get_interpolated_intensity(lamp_ies, t, p)
             for t, p in zip(theta, phi)
         ])
 
@@ -154,6 +159,84 @@ def grade_light_environment(physics_result: Dict[str, Any], species_name: str) -
         "max_ppfd": np.max(ppfd) if len(ppfd) > 0 else 0.0,
         "avg_ppfd": avg_val
     }
+
+
+def _plot_faint_light_cone(ax, lx: float, ly: float, lz: float, yaw_deg: float, tilt_deg: float, max_xy: float, max_z: float) -> None:
+    """
+    Draw a translucent warm-yellow 3D light cone showing luminaire aiming direction and asymmetric beam reach.
+    绘制微弱半透明黄色光锥，直观展示路灯主光束朝向（前向街侧宽、背向屋侧窄）与照射范围。
+    """
+    yaw_rad = np.radians(float(yaw_deg))
+    tilt_rad = np.radians(float(tilt_deg))
+
+    axis = np.array([
+        np.sin(tilt_rad) * np.cos(yaw_rad),
+        np.sin(tilt_rad) * np.sin(yaw_rad),
+        -np.cos(tilt_rad)
+    ])
+    fwd = np.array([
+        np.cos(tilt_rad) * np.cos(yaw_rad),
+        np.cos(tilt_rad) * np.sin(yaw_rad),
+        np.sin(tilt_rad)
+    ])
+    side = np.array([-np.sin(yaw_rad), np.cos(yaw_rad), 0.0])
+
+    n_ang = 40
+    n_len = 12
+    psi = np.linspace(0, 2 * np.pi, n_ang)
+    s_frac = np.linspace(0.0, 1.0, n_len)
+
+    half_ang = np.radians(33.0 + 15.0 * np.cos(psi))
+    dirs = (
+        np.cos(half_ang)[:, None] * axis[None, :]
+        + np.sin(half_ang)[:, None] * (np.cos(psi)[:, None] * fwd[None, :] + np.sin(psi)[:, None] * side[None, :])
+    )
+
+    max_reach = max(lz * 1.25, 4.5)
+    t_max = np.full(n_ang, max_reach)
+    for i in range(n_ang):
+        dx, dy, dz = dirs[i]
+        t_lim = max_reach
+        if dz < -1e-4 and lz > 0:
+            t_lim = min(t_lim, lz / (-dz))
+        elif dz > 1e-4:
+            t_lim = min(t_lim, (max_z - lz) / dz)
+        if dx > 1e-4:
+            t_lim = min(t_lim, (max_xy - lx) / dx)
+        elif dx < -1e-4:
+            t_lim = min(t_lim, (-max_xy - lx) / dx)
+        if dy > 1e-4:
+            t_lim = min(t_lim, (max_xy - ly) / dy)
+        elif dy < -1e-4:
+            t_lim = min(t_lim, (-max_xy - ly) / dy)
+        t_max[i] = max(0.2, t_lim)
+
+    T = s_frac[:, None] * t_max[None, :]
+    Xc = lx + T * dirs[None, :, 0]
+    Yc = ly + T * dirs[None, :, 1]
+    Zc = np.clip(lz + T * dirs[None, :, 2], 0.0, max_z)
+
+    ax.plot_surface(
+        Xc, Yc, Zc,
+        color='#FFE66D',
+        alpha=0.14,
+        shade=False,
+        edgecolor='none',
+        antialiased=True,
+        zorder=1
+    )
+
+    ax.plot(Xc[-1, :], Yc[-1, :], Zc[-1, :], color='#F59E0B', alpha=0.32, lw=1.0, ls='--')
+
+    main_dir = np.cos(np.radians(20.0)) * axis + np.sin(np.radians(20.0)) * fwd
+    t_center = min(max_reach * 0.65, lz / (-main_dir[2]) if main_dir[2] < -1e-4 and lz > 0 else max_reach * 0.5)
+    t_center = max(0.5, t_center)
+    ax.plot(
+        [lx, np.clip(lx + main_dir[0] * t_center, -max_xy, max_xy)],
+        [ly, np.clip(ly + main_dir[1] * t_center, -max_xy, max_xy)],
+        [lz, np.clip(lz + main_dir[2] * t_center, 0.0, max_z)],
+        color='#D97706', alpha=0.65, lw=1.3, ls='--'
+    )
 
 
 # =========================================================================
@@ -208,22 +291,16 @@ def visualize_ppfd_3d(
 
     # === 左图 (全局视角) / Left Plot (Global View) ===
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    sc1 = ax1.scatter(pts[:, 0], pts[:, 1], pts[:, 2], c=ppfd, cmap=custom_cmap, s=6, vmin=0, vmax=vmax_val)
-    ax1.plot_surface(X_trunk, Y_trunk, Zg, color='#5D4037', shade=True, alpha=1.0)
+    sc1 = ax1.scatter(pts[:, 0], pts[:, 1], pts[:, 2], c=ppfd, cmap=custom_cmap, s=6, vmin=0, vmax=vmax_val, zorder=3)
+    ax1.plot_surface(X_trunk, Y_trunk, Zg, color='#5D4037', shade=True, alpha=1.0, zorder=2)
 
-    # 绘制所有光源位置与朝向箭头（反映 yaw 和 tilt）/ Plot all light sources & aiming arrows
-    arrow_len = max(1.0, max_xy * 0.22)
     for lp in light_list:
         lx, ly, lz = lp["x"], lp["y"], lp["z"]
-        yaw_rad = np.radians(float(lp.get("yaw", 0.0)))
-        tilt_rad = np.radians(float(lp.get("tilt", 0.0)))
-        # Optical aiming arrow along forward+tilt direction / 主光束朝向指示箭头
-        dx = np.cos(yaw_rad) * np.cos(tilt_rad) * arrow_len
-        dy = np.sin(yaw_rad) * np.cos(tilt_rad) * arrow_len
-        dz = np.sin(tilt_rad) * arrow_len
-        ax1.scatter([lx], [ly], [lz], c='#FFD700', s=200, marker='*', zorder=10)
+        yaw_deg = float(lp.get("yaw", 0.0))
+        tilt_deg = float(lp.get("tilt", 0.0))
+        _plot_faint_light_cone(ax1, lx, ly, lz, yaw_deg, tilt_deg, max_xy, max_z)
+        ax1.scatter([lx], [ly], [lz], c='#FFD700', edgecolors='#B45309', linewidths=0.8, s=200, marker='*', zorder=10)
         ax1.plot([lx, lx], [ly, ly], [0, lz], 'k--', lw=0.8)
-        ax1.quiver(lx, ly, lz, dx, dy, dz, color='#FF4500', arrow_length_ratio=0.35, lw=1.6)
 
     ax1.set_xlabel('X (m)'); ax1.set_ylabel('Y (m)'); ax1.set_zlabel('Height (m)')
     ax1.set_xlim([-max_xy, max_xy]); ax1.set_ylim([-max_xy, max_xy]); ax1.set_zlim([0, max_z])
