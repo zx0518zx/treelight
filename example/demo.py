@@ -9,7 +9,7 @@ from treelight.ies_parser import get_interpolated_intensity
 from treelight.light_analysis import compute_ies_angles
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_IES = BASE_DIR / "test.ies"
+DEFAULT_IES = BASE_DIR / "Philips_Luma_gen2_BGP704_DM11.ies"
 SAMPLE_CSV = BASE_DIR / "sample.csv"
 
 
