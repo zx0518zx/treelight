@@ -1,113 +1,193 @@
-# -*- coding: utf-8 -*-
 import os
 import tempfile
 import numpy as np
 import pytest
 import matplotlib
-# 强制 Matplotlib 在后台静默绘图，绝不弹出窗口卡死测试流水线
-# Force Matplotlib to plot silently in the background to prevent blocking the testing pipeline
-matplotlib.use('Agg') 
-import matplotlib.pyplot as plt
+
+matplotlib.use("Agg")
 
 import treelight as tl
 from treelight.geometry import generate_fibonacci_mesh
-from treelight.light_analysis import visualize_ppfd_3d
+from treelight.ies_parser import get_interpolated_intensity
+from treelight.light_analysis import compute_ies_angles, visualize_ppfd_3d
 
-def test_config_operations():
-    """
-    测试底层数据库命令及异常拦截
-    Test underlying database commands and exception handling
-    """
-    # 注册并验证新的树种参数 / Register and verify new species parameters
-    tl.register_species("Test_Species", alpha=0.045, rd=0.8, lcp=25.0)
-    assert tl.get_species_params("Test_Species")["alpha"] == 0.045
-    
-    # 注册并验证光源转换因子 / Register and verify light source conversion factor
-    tl.register_light("Test_LED", factor=0.016)
-    assert tl.get_ppfd_factor("Test_LED") == 0.016
-    
-    # 验证异常拦截：查询未知树种应抛出 ValueError 
-    # Verify exception handling: querying unknown species should raise ValueError
-    with pytest.raises(ValueError):
-        tl.get_species_params("Unknown_Tree")
 
-def test_geometry_all_shapes():
-    """
-    全面覆盖 3 种树冠几何体与 NaN 容错
-    Comprehensively cover 3 canopy geometries and NaN tolerance
-    """
-    # 测试三种冠形的正常离散化 / Test normal discretization of three canopy shapes
-    c1, _, _ = generate_fibonacci_mesh("半椭球体/Half Ellipsoid", 8.0, 2.5, 4.0, 0.5)
-    c2, _, _ = generate_fibonacci_mesh("圆柱体/Cylinder", 8.0, 2.5, 4.0, 0.5)
-    c3, _, _ = generate_fibonacci_mesh("圆锥体/Cone", 8.0, 2.5, 4.0, 0.5)
-    assert len(c1) > 0 and len(c2) > 0 and len(c3) > 0
+def test_config_register_delete_and_validation():
+    """Verify species/light registration, deletion, built-in protection, and validation."""
+    sp_name = "_pytest_tmp_species"
+    lt_name = "_pytest_tmp_led"
 
-    # 测试脏数据 (NaN) 拦截能力 / Test dirty data (NaN) interception capability
-    c_nan, _, _ = generate_fibonacci_mesh("圆柱体/Cylinder", np.nan, 2.5, 4.0, 0.1)
-    assert len(c_nan) == 0
+    try:
+        tl.register_species(sp_name, alpha=0.045, rd=0.8, lcp=25.0, lsp=1200.0)
+        assert tl.get_species_params(sp_name)["alpha"] == pytest.approx(0.045)
+        assert sp_name in tl.get_available_species()
 
-def test_ies_parser_full():
-    """
-    构造合法极简 IES 文件，全面覆盖解析逻辑
-    Construct a valid minimalist IES file to fully cover the parsing logic
-    """
-    # 模拟一个真实的最小化 IES 文本结构 / Simulate a real minimized IES text structure
-    valid_ies_content = """IESNA:LM-63-2002
-[TEST] dummy
+        tl.register_light(lt_name, factor=0.016)
+        assert tl.get_ppfd_factor(lt_name) == pytest.approx(0.016)
+        assert lt_name in tl.get_available_lights()
+
+        # Built-in entries must be protected from deletion
+        with pytest.raises(ValueError):
+            tl.delete_species("香樟 (Cinnamomum camphora)")
+        with pytest.raises(ValueError):
+            tl.delete_light("4000K LED")
+
+        # Invalid queries and negative parameters must raise ValueError
+        with pytest.raises(ValueError):
+            tl.get_species_params("Unknown_Tree_XYZ")
+        with pytest.raises(ValueError):
+            tl.get_ppfd_factor("Unknown_Light_XYZ")
+        with pytest.raises(ValueError):
+            tl.register_species("Bad_Sp", alpha=-0.1, rd=0.5, lcp=10.0)
+        with pytest.raises(ValueError):
+            tl.register_light("Bad_Light", factor=0.0)
+
+        # Clean deletion of custom entries
+        tl.delete_species(sp_name)
+        assert sp_name not in tl.get_available_species()
+        tl.delete_light(lt_name)
+        assert lt_name not in tl.get_available_lights()
+    finally:
+        if sp_name in tl.get_available_species():
+            tl.delete_species(sp_name)
+        if lt_name in tl.get_available_lights():
+            tl.delete_light(lt_name)
+
+
+def test_geometry_all_shapes_and_nan():
+    """Cover semi-ellipsoid, cone, cylinder canopy primitives and NaN interception."""
+    for shape in ("半椭球体/Half Ellipsoid", "圆锥体/Cone", "圆柱体/Cylinder"):
+        centers, normals, areas = generate_fibonacci_mesh(shape, 2.5, 5.5, 4.0, 0.5)
+        assert len(centers) > 0
+        assert centers.shape == normals.shape
+        assert len(areas) == len(centers)
+        assert np.all(areas > 0)
+
+    c_nan, n_nan, a_nan = generate_fibonacci_mesh("Cylinder", np.nan, 5.0, 4.0, 0.1)
+    assert len(c_nan) == 0 and len(n_nan) == 0 and len(a_nan) == 0
+
+
+def test_ies_parser_multiplier_errors_and_symmetry():
+    """Verify IES LM-63 candela multiplier, error handling, and C-plane symmetry interpolation."""
+    valid_ies = """IESNA:LM-63-2002
+[TEST] dummy multiplier 2.5
 TILT=NONE
-1 1000 1 3 4 1 2 0.3 0.3 0
+1 1000 2.5 3 4 1 2 0.3 0.3 0
 1.0 1.0 1.0
 0 45 90
 0 90 180 270
-100 100 100
-100 100 100
-100 100 100
-100 100 100
+100 80 20
+100 80 20
+100 80 20
+100 80 20
 """
-    # 创建临时文件进行无痕测试 / Create a temporary file for traceless testing
-    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.ies') as f:
-        f.write(valid_ies_content)
-        temp_name = f.name
-        
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ies", encoding="utf-8") as f:
+        f.write(valid_ies)
+        ies_path = f.name
+
     try:
-        data, msg = tl.parse_ies_full(temp_name)
-        assert data is not None
-        assert 'grid' in data
+        data, msg = tl.parse_ies_full(ies_path)
+        assert data is not None and "✅" in msg
+        assert data["multiplier"] == pytest.approx(2.5)
+        assert data["grid"][0, 0] == pytest.approx(250.0)
+        assert get_interpolated_intensity(data, 0.0, 0.0) == pytest.approx(250.0)
     finally:
-        os.remove(temp_name) # 测试后自动清理 / Auto-cleanup after testing
-        
-    # 测试空文件错误拦截 / Test non-existent file error interception
-    data_fail, _ = tl.parse_ies_full("fake_not_exist.ies")
-    assert data_fail is None
+        os.remove(ies_path)
 
-def test_physics_ecology_and_visualization():
-    """
-    测试物理引擎、碳汇计算，并在后台静默跑通 3D 绘图代码
-    Test the physics engine, carbon sink calculation, and silently execute 3D plotting code
-    """
-    # 构造含 grid 的完整虚拟配光矩阵 / Construct a complete dummy photometric matrix including 'grid'
-    dummy_ies_data = {
-        'v_angles': np.array([0, 45, 90]),
-        'h_angles': np.array([0, 90, 180, 270]),
-        'candela_values': np.ones((4, 3)) * 1000,
-        'grid': np.ones((4, 3)) * 1000
+    # Test 0/90/180 symmetry branches in get_interpolated_intensity
+    for h_angs in (np.array([0.0]), np.array([0.0, 45.0, 90.0]), np.array([0.0, 90.0, 180.0])):
+        sym_ies = {
+            "v_angles": np.array([0.0, 45.0, 90.0]),
+            "h_angles": h_angs,
+            "grid": np.full((len(h_angs), 3), 500.0),
+        }
+        for phi in (0.0, 45.0, 135.0, 225.0, 315.0):
+            if len(h_angs) > 1:
+                assert get_interpolated_intensity(sym_ies, 30.0, phi) == pytest.approx(500.0)
+
+    # Error handling: non-existent file and missing TILT=NONE
+    assert tl.parse_ies_full("non_existent_dummy.ies")[0] is None
+    with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".ies", encoding="utf-8") as f:
+        f.write("IESNA:LM-63-2002\nINVALID_HEADER\n")
+        bad_path = f.name
+    try:
+        assert tl.parse_ies_full(bad_path)[0] is None
+    finally:
+        os.remove(bad_path)
+
+
+def test_multi_lamp_mixed_k_yaw_tilt_and_cosine():
+    """Verify exact linear superposition across 3 lamps with distinct yaw, tilt, IES, and k, plus cosine toggle."""
+    ies_a = {
+        "v_angles": np.array([0.0, 45.0, 90.0]),
+        "h_angles": np.array([0.0, 90.0, 180.0, 270.0, 360.0]),
+        "grid": np.full((5, 3), 1000.0),
     }
-    
-    geo_params = {"canopy_type": "半椭球体/Half Ellipsoid", "tree_height": 8.0, "branch_height": 2.5, "crown_width": 4.0}
-    light_pos = [{"x": 1.8, "y": 2.5, "z": 9.5}]
-    env_params = {"precision": 0.5, "maintenance_factor": 0.85, "light_output_ratio": 0.9, "ppfd_factor": 0.015}
+    ies_b = {
+        "v_angles": np.array([0.0, 45.0, 90.0]),
+        "h_angles": np.array([0.0, 90.0, 180.0, 270.0, 360.0]),
+        "grid": np.full((5, 3), 600.0),
+    }
+    geo = {"canopy_type": "Half Ellipsoid", "tree_height": 8.0, "branch_height": 2.5, "crown_width": 4.0}
+    env = {
+        "precision": 0.5,
+        "maintenance_factor": 0.9,
+        "light_output_ratio": 0.9,
+        "ppfd_factor": 0.0154,
+        "cosine_correction": True,
+    }
 
-    # 测试物理辐射计算 / Test physical radiation computation
-    physics_result = tl.calculate_canopy_ppfd(geo_params, light_pos, dummy_ies_data, env_params)
-    assert len(physics_result['centers']) > 0
+    l1 = {"x": 2.0, "y": 2.0, "z": 9.0, "yaw": 0.0, "tilt": 0.0, "ies_data": ies_a, "ppfd_factor": 0.0143}
+    l2 = {"x": -2.5, "y": 2.0, "z": 9.5, "yaw": 90.0, "tilt": 15.0, "ies_data": ies_b, "ppfd_factor": 0.0170}
+    l3 = {"x": 0.0, "y": -3.0, "z": 8.5, "yaw": 180.0, "tilt": 10.0}  # falls back to default ies_a and global k
 
-    # 测试生态分级与隐性碳汇 / Test ecological grading and implicit carbon sink
-    tl.register_species("Mock_Species", alpha=0.05, rd=1.0, lcp=20.0)
-    grade = tl.grade_light_environment(physics_result, "Mock_Species")
-    carbon = tl.calculate_implicit_carbon(physics_result, "Mock_Species", hours=4380)
-    assert grade['total_area'] > 0
+    r1 = tl.calculate_canopy_ppfd(geo, [l1], ies_a, env)["ppfd_raw"]
+    r2 = tl.calculate_canopy_ppfd(geo, [l2], ies_a, env)["ppfd_raw"]
+    r3 = tl.calculate_canopy_ppfd(geo, [l3], ies_a, env)["ppfd_raw"]
+    r123 = tl.calculate_canopy_ppfd(geo, [l1, l2, l3], ies_a, env)["ppfd_raw"]
 
-    # 测试 3D 绘图功能 (覆盖绘图代码且不弹窗) / Test 3D plotting (covers plotting code without pop-ups)
-    visualize_ppfd_3d(physics_result, geo_params, light_pos, save_path="temp_test_plot.png")
-    assert os.path.exists("temp_test_plot.png")
-    os.remove("temp_test_plot.png")
+    assert np.allclose(r123, r1 + r2 + r3, atol=1e-12)
+
+    # Cosine OFF (scalar irradiance) must be >= Cosine ON on every canopy element
+    env_scalar = dict(env, cosine_correction=False)
+    r_scalar = tl.calculate_canopy_ppfd(geo, [l1], ies_a, env_scalar)["ppfd_raw"]
+    assert np.all(r_scalar + 1e-12 >= r1)
+    assert np.max(r_scalar) > np.max(r1)
+
+    # Direct check on compute_ies_angles nadir vector
+    th, ph = compute_ies_angles(np.array([[0.0, 0.0, -1.0]]), yaw=0.0, tilt=0.0)
+    assert th[0] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_ecology_and_3d_visualization():
+    """Verify ecological grading, implicit carbon (lit & dark), and silent 3D heatmap rendering."""
+    dummy_ies = {
+        "v_angles": np.array([0.0, 45.0, 90.0]),
+        "h_angles": np.array([0.0, 90.0, 180.0, 270.0, 360.0]),
+        "grid": np.full((5, 3), 1000.0),
+    }
+    geo = {"canopy_type": "Half Ellipsoid", "tree_height": 8.0, "branch_height": 2.5, "crown_width": 4.0}
+    light_pos = [{"x": 1.8, "y": 2.5, "z": 9.5, "yaw": 0.0, "tilt": 0.0}]
+    env = {"precision": 0.5, "maintenance_factor": 0.85, "light_output_ratio": 0.9, "ppfd_factor": 0.0154}
+    species = "香樟 (Cinnamomum camphora)"
+
+    phys = tl.calculate_canopy_ppfd(geo, light_pos, dummy_ies, env)
+    grade = tl.grade_light_environment(phys, species)
+    carbon = tl.calculate_implicit_carbon(phys, species, hours=4380)
+    assert grade["total_area"] > 0
+    assert carbon["carbon_g"] > 0 and 0 < carbon["valid_area_ratio"] <= 1.0
+
+    # Zero-light edge case
+    dark_phys = dict(phys, ppfd_raw=np.zeros_like(phys["ppfd_raw"]))
+    dark_carbon = tl.calculate_implicit_carbon(dark_phys, species)
+    assert dark_carbon["carbon_g"] == 0.0 and dark_carbon["valid_area_ratio"] == 0.0
+
+    # Silent 3D visualization with ground IES footprint
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
+        plot_path = f.name
+    try:
+        visualize_ppfd_3d(phys, species_name="Cinnamomum camphora", show=False, save_path=plot_path)
+        assert os.path.exists(plot_path) and os.path.getsize(plot_path) > 0
+    finally:
+        if os.path.exists(plot_path):
+            os.remove(plot_path)
