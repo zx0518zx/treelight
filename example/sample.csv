@@ -1,0 +1,22 @@
+Tree ID,Tree Species,Canopy Type,Total Tree Height (m),Under-branch Height (m),Crown Diameter (m),Light Source Coordinates,Light Yaw (°),Light Tilt (°),IES File,PPFD Factor
+1.1,Cinnamomum camphora,Half Ellipsoid,5.64,2.47,2.94,"(2.03, 2.0, 8.0)",,,,
+1.2,Cinnamomum camphora,Half Ellipsoid,4.36,1.98,3.48,"(5.6, 2.5, 10.0)",,,,
+2.1,Cinnamomum camphora,Half Ellipsoid,5.22,2.26,3.47,"(2.23, 2.5, 10.0)",,,,
+2.2,Cinnamomum camphora,Half Ellipsoid,6.28,2.21,4.31,"(7.05, 2.5, 10.0)",,,,
+3.1,Cinnamomum camphora,Half Ellipsoid,5.28,2.32,2.66,"(1.63, 6.5, 10.0)",,,,
+3.2,Cinnamomum camphora,Half Ellipsoid,3.9,1.44,2.8,"(6.2, 2.5, 10.0)",,,,
+4.1,Cinnamomum camphora,Half Ellipsoid,4.82,1.84,2.66,"(2.09, 2.5, 10.0)",,,,
+4.2,Cinnamomum camphora,Half Ellipsoid,4.46,1.77,3.48,"(7.75, 2.5, 10.0)",,,,
+5.1,Cinnamomum camphora,Half Ellipsoid,5.53,1.96,3.19,"(1.99, 2.5, 10.0)",,,,
+5.2,Cinnamomum camphora,Half Ellipsoid,3.95,1.83,2.23,"(4.52, 2.5, 10.0)",,,,
+6.1,Cinnamomum camphora,Half Ellipsoid,4.51,1.79,3.1,"(2.14, 2.5, 10.0)",,,,
+6.2,Cinnamomum camphora,Half Ellipsoid,4.84,2.09,2.86,"(5.84, 2.5, 10.0)",,,,
+7.1,Cinnamomum camphora,Half Ellipsoid,4.94,1.86,2.63,"(1.24, 2.5, 10.0)",,,,
+8.2,Cinnamomum camphora,Half Ellipsoid,6.37,2.51,3.12,"(6.15, 2.5, 10.0)",,,,
+9.1,Cinnamomum camphora,Half Ellipsoid,4.54,1.89,3.12,"(1.93, 2.5, 10.0)",,,,
+9.2,Cinnamomum camphora,Half Ellipsoid,5.31,1.97,3.87,"(6.89, 6.5, 10.0)",,,,
+10.1,Cinnamomum camphora,Half Ellipsoid,3.98,1.82,2.62,"(1.36, 2.5, 10.0)",,,,
+10.2,Cinnamomum camphora,Half Ellipsoid,4.86,1.91,2.23,"(5.75, 6.5, 10.0)",,,,
+DEMO_CONE,Koelreuteria paniculata,Cone,7.5,2.2,4.2,"(2.0, 2.5, 8.5)",0,15,Philips_Luma_gen2_BGP704_DM11.ies,4000K LED
+DEMO_DUAL,Platanus × acerifolia,Cylinder,9.5,3.2,5.2,"(-4.0, 2.5, 9.5); (4.0, 2.5, 9.5)",0; 180,10; 10,Philips_Luma_gen2_BGP704_DM11.ies; test.ies,3000K LED; 5000K LED
+DEMO_TRIPLE,Ginkgo biloba,Half Ellipsoid,8.8,3,4.8,"(-5.0, 2.0, 9.0); (0.0, 3.0, 9.5); (5.0, 2.0, 9.0)",0; 90; 180,10; 15; 10,Philips_Luma_gen2_BGP704_DM11.ies,0.0143; 0.0154; 0.0170
