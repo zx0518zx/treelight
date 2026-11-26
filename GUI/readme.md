@@ -11,7 +11,6 @@
 
 ## Overview (项目概述)
 
-### English
 `treelight` is an open-source Python library and standalone graphical user interface (GUI) for quantifying three-dimensional artificial light at night (ALAN) exposure across urban tree canopies.
 
 By integrating standardized Illuminating Engineering Society (`IESNA LM-63`) photometric files with routinely collected urban forestry metrics (tree height, crown-base height, crown diameter, and relative luminaire coordinates), `treelight` bridges the gap between engineering illuminance (**lux**) and plant-relevant photosynthetic photon flux density (**PPFD**, $\mu\text{mol}\cdot\text{m}^{-2}\cdot\text{s}^{-1}$).
@@ -20,7 +19,6 @@ By integrating standardized Illuminating Engineering Society (`IESNA LM-63`) pho
 * **Flexible Multi-Luminaire & Receptor Modelling:** Supports linear superposition of arbitrary numbers of luminaires (with per-lamp horizontal yaw, upward tilt, individual IES files, and independent spectral conversion factors $k$), an optional cosine-correction toggle for non-planar receptors, and free-space point receptor analysis.
 * **Scalable & Reproducible:** Uses a tree-centred local coordinate system for rapid city-scale batch processing, and exports standalone executable Python scripts directly from the GUI.
 
-### 中文
 `treelight` 是一个开源 Python 计算库与独立图形用户界面（GUI），用于定量评估城市树木冠层接收的三维夜间人造光（ALAN）暴露水平。
 
 通过融合照明工程标准的 `IESNA LM-63` 配光曲线文件与常规城市林业调查指标（树高、枝下高、冠幅及灯具相对坐标），`treelight` 弥合了工程照度（**lux**）与植物生理学光合光量子通量密度（**PPFD**，$\mu\text{mol}\cdot\text{m}^{-2}\cdot\text{s}^{-1}$）之间的指标错配。
