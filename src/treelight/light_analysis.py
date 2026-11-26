@@ -123,7 +123,9 @@ def calculate_canopy_ppfd(
         "ppfd_raw": total_ppfd,
         "geo_params": geo_params,
         "light_pos": light_pos_list[0] if light_pos_list else None,
-        "light_pos_list": list(light_pos_list)
+        "light_pos_list": list(light_pos_list),
+        "ies_data": ies_data,
+        "env_params": dict(env_params)
     }
 
 
@@ -161,82 +163,83 @@ def grade_light_environment(physics_result: Dict[str, Any], species_name: str) -
     }
 
 
-def _plot_faint_light_cone(ax, lx: float, ly: float, lz: float, yaw_deg: float, tilt_deg: float, max_xy: float, max_z: float) -> None:
+def _plot_ground_ies_footprint(
+    ax,
+    light_list: List[Dict[str, Any]],
+    default_ies: Optional[Dict[str, Any]],
+    env_params: Dict[str, Any],
+    max_xy: float
+) -> None:
     """
-    Draw a translucent warm-yellow 3D light cone showing luminaire aiming direction and asymmetric beam reach.
-    绘制微弱半透明黄色光锥，直观展示路灯主光束朝向（前向街侧宽、背向屋侧窄）与照射范围。
+    Compute and render the true physical ground-plane (z=0) irradiance footprint from actual IES data,
+    plus a subtle dashed ray from each luminaire to its real ground peak illumination point.
+    基于真实 IES 配光数据计算并在地面 (z=0) 绘制实际光照覆盖等值面，同时用细虚线连接每盏灯与其地面最亮中心。
     """
-    yaw_rad = np.radians(float(yaw_deg))
-    tilt_rad = np.radians(float(tilt_deg))
+    if not light_list:
+        return
 
-    axis = np.array([
-        np.sin(tilt_rad) * np.cos(yaw_rad),
-        np.sin(tilt_rad) * np.sin(yaw_rad),
-        -np.cos(tilt_rad)
-    ])
-    fwd = np.array([
-        np.cos(tilt_rad) * np.cos(yaw_rad),
-        np.cos(tilt_rad) * np.sin(yaw_rad),
-        np.sin(tilt_rad)
-    ])
-    side = np.array([-np.sin(yaw_rad), np.cos(yaw_rad), 0.0])
+    n_grid = 45
+    xs = np.linspace(-max_xy, max_xy, n_grid)
+    ys = np.linspace(-max_xy, max_xy, n_grid)
+    Xg, Yg = np.meshgrid(xs, ys)
+    pts_g = np.column_stack([Xg.ravel(), Yg.ravel(), np.zeros(Xg.size)])
 
-    n_ang = 40
-    n_len = 12
-    psi = np.linspace(0, 2 * np.pi, n_ang)
-    s_frac = np.linspace(0.0, 1.0, n_len)
+    mf = float(env_params.get("maintenance_factor", 1.0))
+    lor = float(env_params.get("light_output_ratio", 1.0))
+    conv = float(env_params.get("ppfd_factor", 0.0154))
 
-    half_ang = np.radians(33.0 + 15.0 * np.cos(psi))
-    dirs = (
-        np.cos(half_ang)[:, None] * axis[None, :]
-        + np.sin(half_ang)[:, None] * (np.cos(psi)[:, None] * fwd[None, :] + np.sin(psi)[:, None] * side[None, :])
+    total_ground_ppfd = np.zeros(pts_g.shape[0])
+    peak_points = []
+    has_any_ies = False
+
+    for lp in light_list:
+        lamp_ies = lp.get("ies_data") or default_ies
+        if lamp_ies is None:
+            continue
+        has_any_ies = True
+
+        l_pos = np.array([lp["x"], lp["y"], lp["z"]], dtype=float)
+        yaw = float(lp.get("yaw", 0.0))
+        tilt = float(lp.get("tilt", 0.0))
+
+        vec = pts_g - l_pos
+        dists_sq = np.sum(vec**2, axis=1) + 1e-9
+        l_dir = vec / np.sqrt(dists_sq)[:, None]
+        cos_g = np.clip(-l_dir[:, 2], 0.0, 1.0)
+
+        theta, phi = compute_ies_angles(l_dir, yaw=yaw, tilt=tilt)
+        intensities = np.array([get_interpolated_intensity(lamp_ies, t, p) for t, p in zip(theta, phi)])
+        ppfd_i = (intensities / dists_sq) * cos_g * mf * lor * conv
+        total_ground_ppfd += ppfd_i
+
+        # Record real peak illumination point on the ground for this lamp / 记录该灯在地面上的真实最亮点
+        idx_p = int(np.argmax(ppfd_i))
+        if ppfd_i[idx_p] > 0:
+            peak_points.append((l_pos, pts_g[idx_p]))
+
+    if not has_any_ies or np.max(total_ground_ppfd) <= 0:
+        return
+
+    Zg_ppfd = total_ground_ppfd.reshape(Xg.shape)
+    gmax = float(np.max(Zg_ppfd))
+
+    # Subtle warm translucent ground-footprint colormap (transparent at low values -> warm gold/amber at peak)
+    ground_cmap = mcolors.LinearSegmentedColormap.from_list(
+        "GroundLight",
+        [(1.0, 0.99, 0.90, 0.0), (1.0, 0.95, 0.60, 0.25), (1.0, 0.80, 0.22, 0.48), (0.95, 0.55, 0.10, 0.65)],
+        N=64
     )
+    levels = np.linspace(gmax * 0.08, gmax, 9)
+    ax.contourf(Xg, Yg, Zg_ppfd, levels=levels, zdir='z', offset=0.0, cmap=ground_cmap, zorder=0)
+    ax.contour(Xg, Yg, Zg_ppfd, levels=levels[::2], zdir='z', offset=0.0, colors='#D97706', linewidths=0.75, alpha=0.55, zorder=1)
 
-    max_reach = max(lz * 1.25, 4.5)
-    t_max = np.full(n_ang, max_reach)
-    for i in range(n_ang):
-        dx, dy, dz = dirs[i]
-        t_lim = max_reach
-        if dz < -1e-4 and lz > 0:
-            t_lim = min(t_lim, lz / (-dz))
-        elif dz > 1e-4:
-            t_lim = min(t_lim, (max_z - lz) / dz)
-        if dx > 1e-4:
-            t_lim = min(t_lim, (max_xy - lx) / dx)
-        elif dx < -1e-4:
-            t_lim = min(t_lim, (-max_xy - lx) / dx)
-        if dy > 1e-4:
-            t_lim = min(t_lim, (max_xy - ly) / dy)
-        elif dy < -1e-4:
-            t_lim = min(t_lim, (-max_xy - ly) / dy)
-        t_max[i] = max(0.2, t_lim)
-
-    T = s_frac[:, None] * t_max[None, :]
-    Xc = lx + T * dirs[None, :, 0]
-    Yc = ly + T * dirs[None, :, 1]
-    Zc = np.clip(lz + T * dirs[None, :, 2], 0.0, max_z)
-
-    ax.plot_surface(
-        Xc, Yc, Zc,
-        color='#FFE66D',
-        alpha=0.14,
-        shade=False,
-        edgecolor='none',
-        antialiased=True,
-        zorder=1
-    )
-
-    ax.plot(Xc[-1, :], Yc[-1, :], Zc[-1, :], color='#F59E0B', alpha=0.32, lw=1.0, ls='--')
-
-    main_dir = np.cos(np.radians(20.0)) * axis + np.sin(np.radians(20.0)) * fwd
-    t_center = min(max_reach * 0.65, lz / (-main_dir[2]) if main_dir[2] < -1e-4 and lz > 0 else max_reach * 0.5)
-    t_center = max(0.5, t_center)
-    ax.plot(
-        [lx, np.clip(lx + main_dir[0] * t_center, -max_xy, max_xy)],
-        [ly, np.clip(ly + main_dir[1] * t_center, -max_xy, max_xy)],
-        [lz, np.clip(lz + main_dir[2] * t_center, 0.0, max_z)],
-        color='#D97706', alpha=0.65, lw=1.3, ls='--'
-    )
+    # Draw subtle dashed aiming ray from each lamp to its actual brightest ground spot / 连接灯具与地面最亮点的细虚线
+    for l_pos, p_peak in peak_points:
+        ax.plot(
+            [l_pos[0], p_peak[0]], [l_pos[1], p_peak[1]], [l_pos[2], 0.0],
+            color='#D97706', linestyle='--', linewidth=1.2, alpha=0.70, zorder=4
+        )
+        ax.scatter([p_peak[0]], [p_peak[1]], [0.0], color='#D97706', marker='x', s=32, linewidths=1.3, alpha=0.85, zorder=5)
 
 
 # =========================================================================
@@ -291,14 +294,20 @@ def visualize_ppfd_3d(
 
     # === 左图 (全局视角) / Left Plot (Global View) ===
     ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+
+    # 在地面 (z=0) 绘制基于真实 IES 配光的实际照射范围等值面 / Render true physical IES ground footprint at z=0
+    _plot_ground_ies_footprint(
+        ax1, light_list,
+        physics_result.get("ies_data"),
+        physics_result.get("env_params", {}),
+        max_xy
+    )
+
     sc1 = ax1.scatter(pts[:, 0], pts[:, 1], pts[:, 2], c=ppfd, cmap=custom_cmap, s=6, vmin=0, vmax=vmax_val, zorder=3)
     ax1.plot_surface(X_trunk, Y_trunk, Zg, color='#5D4037', shade=True, alpha=1.0, zorder=2)
 
     for lp in light_list:
         lx, ly, lz = lp["x"], lp["y"], lp["z"]
-        yaw_deg = float(lp.get("yaw", 0.0))
-        tilt_deg = float(lp.get("tilt", 0.0))
-        _plot_faint_light_cone(ax1, lx, ly, lz, yaw_deg, tilt_deg, max_xy, max_z)
         ax1.scatter([lx], [ly], [lz], c='#FFD700', edgecolors='#B45309', linewidths=0.8, s=200, marker='*', zorder=10)
         ax1.plot([lx, lx], [ly, ly], [0, lz], 'k--', lw=0.8)
 
