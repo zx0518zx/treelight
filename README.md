@@ -3,14 +3,15 @@
 ### Quantifying Three-Dimensional Artificial Light at Night (ALAN) Exposure in Urban Tree Canopies
 ### 城市树木冠层三维夜间人造光（ALAN）暴露量化框架
 
-[](https://www.python.org/)
-[](https://opensource.org/licenses/MIT)
-[]()
+[[https://img.shields.io/badge/python-3.8%2B-blue.svg]](https://www.python.org/)
+[[https://img.shields.io/badge/License-MIT-yellow.svg]](https://opensource.org/licenses/MIT)
+[[https://img.shields.io/badge/Field-Urban%20Ecology%20%7C%20Ecophysiology-green.svg]]()
 
 ---
 
 ## Overview (项目概述)
 
+### English
 `treelight` is an open-source Python library and standalone graphical user interface (GUI) for quantifying three-dimensional artificial light at night (ALAN) exposure across urban tree canopies.
 
 By integrating standardized Illuminating Engineering Society (`IESNA LM-63`) photometric files with routinely collected urban forestry metrics (tree height, crown-base height, crown diameter, and relative luminaire coordinates), `treelight` bridges the gap between engineering illuminance (**lux**) and plant-relevant photosynthetic photon flux density (**PPFD**, $\mu\text{mol}\cdot\text{m}^{-2}\cdot\text{s}^{-1}$).
@@ -19,11 +20,12 @@ By integrating standardized Illuminating Engineering Society (`IESNA LM-63`) pho
 * **Flexible Multi-Luminaire & Receptor Modelling:** Supports linear superposition of arbitrary numbers of luminaires (with per-lamp horizontal yaw, upward tilt, individual IES files, and independent spectral conversion factors $k$), an optional cosine-correction toggle for non-planar receptors, and free-space point receptor analysis.
 * **Scalable & Reproducible:** Uses a tree-centred local coordinate system for rapid city-scale batch processing, and exports standalone executable Python scripts directly from the GUI.
 
+### 中文
 `treelight` 是一个开源 Python 计算库与独立图形用户界面（GUI），用于定量评估城市树木冠层接收的三维夜间人造光（ALAN）暴露水平。
 
 通过融合照明工程标准的 `IESNA LM-63` 配光曲线文件与常规城市林业调查指标（树高、枝下高、冠幅及灯具相对坐标），`treelight` 弥合了工程照度（**lux**）与植物生理学光合光量子通量密度（**PPFD**，$\mu\text{mol}\cdot\text{m}^{-2}\cdot\text{s}^{-1}$）之间的指标错配。
 
-* **多场景野外验证（无经验缩放）：** 在覆盖至 7.0 m 冠层高度的三类典型城市照明场景（共 351 个测点）中完成验证——常规单灯道路照明（$R^2 = 0.698$，$\text{RMSE} = 0.340$）、定向投光照明（$R^2 = 0.816$，$\text{RMSE} = 2.113$）与双灯叠加道路照明（$R^2 = 0.849$，$\text{RMSE} = 2.267$）。
+* **多场景野外验证（无经验缩放）：** 在覆盖至 7.0 m 冠层高度的三类典型城市照明场景（共 351 个测点）中完成验证——常规单灯道路照明（R^2 = 0.698，RMSE = 0.340）、定向投光照明（R^2 = 0.816，RMSE = 2.113）与双灯叠加道路照明（R^2 = 0.849，RMSE = 2.267）。
 * **灵活的多灯叠加与受体建模：** 支持任意数量灯具的线性叠加（每盏灯可独立配置水平偏航角 Yaw、仰角 Tilt、独立 IES 文件及独立光谱换算系数 $k$），提供面向非平面受体的余弦校正开关以及自由空间单点受体分析。
 * **高通量且可复现：** 采用以目标树为中心的局部坐标系实现快速批量处理，并支持在 GUI 中一键导出可独立运行的 Python 复现脚本。
 
@@ -44,32 +46,33 @@ By integrating standardized Illuminating Engineering Society (`IESNA LM-63`) pho
 ```text
 treelight/
 ├── GUI/
-│   └── treelight_GUI.py                        # Standalone bilingual desktop GUI (v1.1)
+│   └── treelight_GUI.py                                # Standalone bilingual desktop GUI (v1.1)
 ├── example/
-│   ├── demo.py                                 # Consolidated demo (single-tree, batch, free-space point)
-│   ├── sample.csv                              # Table S2 batch inventory (18 C. camphora + 3 multi-lamp demos)
-│   └── test.ies                                # Example DM11 photometric file
+│   ├── demo.py                                         # Consolidated demo (single-tree, batch, free-space point)
+│   ├── sample.csv                                      # Table S2 batch inventory (18 C. camphora + 3 multi-lamp demos)
+│   ├── Philips_Luma_gen2_BGP704_DM11.ies               # Example DM11 photometric file
+│   └── BGP292 LED120-4S_740 II DM11 STDE NA 48_.ies    # Secondary IES file for multi-lamp demo
 ├── src/
 │   └── treelight/
-│       ├── __init__.py                         # Package initialization & public API (v1.1.0)
-│       ├── config.py                           # Species & light-source database with local persistence
-│       ├── ies_parser.py                       # IESNA LM-63 parser (with candela multiplier) & interpolator
-│       ├── geometry.py                         # Parametric Fibonacci canopy mesh generator
-│       ├── light_analysis.py                   # 3D multi-luminaire light field engine & 3D heatmap plotting
-│       └── ecology.py                          # Ecological grading & implicit carbon metrics
+│       ├── __init__.py                                 # Package initialization & public API (v1.1.0)
+│       ├── config.py                                   # Species & light-source database with local persistence
+│       ├── ies_parser.py                               # IESNA LM-63 parser (with candela multiplier) & interpolator
+│       ├── geometry.py                                 # Parametric Fibonacci canopy mesh generator
+│       ├── light_analysis.py                           # 3D multi-luminaire light field engine & 3D heatmap plotting
+│       └── ecology.py                                  # Ecological grading & implicit carbon metrics
 ├── tests/
-│   └── test_all_core.py                        # Automated pytest suite (93% coverage across core modules)
+│   └── test_all_core.py                                # Automated pytest suite (93% coverage across core modules)
 ├── validation/
 │   ├── site1_single_roadway/
-│   │   ├── site1_validation_data.xlsx          # Site 1 measurements & metadata (n = 126)
+│   │   ├── site1_validation_data.xlsx                  # Site 1 measurements & metadata (n = 126)
 │   │   └── BGP293 LED240-4S_740 I DM11 STD NA 48_60.ies
 │   ├── site2_directional_floodlight/
-│   │   ├── site2_validation_data.xlsx          # Site 2 measurements & metadata (n = 78)
+│   │   ├── site2_validation_data.xlsx                  # Site 2 measurements & metadata (n = 78)
 │   │   └── Signify-BVP561-LED40-740-20W-WLP-AMB.ies
 │   ├── site3_overlapping_roadway/
-│   │   ├── site3_validation_data.xlsx          # Site 3 measurements & metadata (n = 147)
+│   │   ├── site3_validation_data.xlsx                  # Site 3 measurements & metadata (n = 147)
 │   │   └── BGP292 LED120-4S_740 II DM11 STDE NA 48_.ies
-│   └── reproduce_validation.py                 # Reproduces Figure 4 & Table S3 validation metrics
+│   └── Reproduce Validation.py                         # Reproduces Figure 4 & Table S3 validation metrics
 ├── .gitignore
 ├── MIT License
 ├── pyproject.toml
@@ -110,7 +113,7 @@ python GUI/treelight_GUI.py
 Automatically loads the three site datasets and proxy IES files via relative paths, prints all validation statistics reported in Table S3, and exports the 600 DPI composite Figure 4:
 
 ```bash
-python validation/reproduce_validation.py
+python "validation/Reproduce Validation.py"
 ```
 
 ### 4. Run Automated Unit Tests (运行单元测试)
@@ -133,7 +136,7 @@ tl.register_light(name="My_LED", factor=0.0154)
 k_4000k = tl.get_ppfd_factor("4000K LED")
 
 # 2. Parse IES photometric file
-ies_data, msg = tl.parse_ies_full("example/test.ies")
+ies_data, msg = tl.parse_ies_full("example/Philips_Luma_gen2_BGP704_DM11.ies")
 
 # 3. Configure tree geometry and luminaires (supports arbitrary N lamps with per-lamp yaw, tilt, ies_data, ppfd_factor)
 geo_params = {
