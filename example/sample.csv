@@ -18,5 +18,5 @@ Tree ID,Tree Species,Canopy Type,Total Tree Height (m),Under-branch Height (m),C
 10.1,Cinnamomum camphora,Half Ellipsoid,3.98,1.82,2.62,"(1.36, 2.5, 10.0)",,,,
 10.2,Cinnamomum camphora,Half Ellipsoid,4.86,1.91,2.23,"(5.75, 6.5, 10.0)",,,,
 DEMO_CONE,Koelreuteria paniculata,Cone,7.5,2.2,4.2,"(2.0, 2.5, 8.5)",0,15,Philips_Luma_gen2_BGP704_DM11.ies,4000K LED
-DEMO_DUAL,Platanus × acerifolia,Cylinder,9.5,3.2,5.2,"(-4.0, 2.5, 9.5); (4.0, 2.5, 9.5)",0; 180,10; 10,Philips_Luma_gen2_BGP704_DM11.ies; test.ies,3000K LED; 5000K LED
+DEMO_DUAL,Platanus × acerifolia,Cylinder,9.5,3.2,5.2,"(-4.0, 2.5, 9.5); (4.0, 2.5, 9.5)",0; 180,10; 10,Philips_Luma_gen2_BGP704_DM11.ies; BGP292 LED120-4S_740 II DM11 STDE NA 48_.ies,3000K LED; 5000K LED
 DEMO_TRIPLE,Ginkgo biloba,Half Ellipsoid,8.8,3,4.8,"(-5.0, 2.0, 9.0); (0.0, 3.0, 9.5); (5.0, 2.0, 9.0)",0; 90; 180,10; 15; 10,Philips_Luma_gen2_BGP704_DM11.ies,0.0143; 0.0154; 0.0170
